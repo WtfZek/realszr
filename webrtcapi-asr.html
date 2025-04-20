@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>愚人数字</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: linear-gradient(to bottom, #e1f5fe, #f1f8e9);
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .left-column, .right-column {
+            width: 50%;
+            padding: 20px;
+            background-image: linear-gradient(to bottom, #e1f5fe, #f1f8e9);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #media {
+            text-align: center;
+        }
+
+        video {
+            width: 100%;
+            max-width: 600px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            margin-bottom: 10px;
+        }
+
+        #asr-iframe {
+            border: none;
+            width: 100%;
+            max-width: 600px;
+            height: 500px;
+            margin: 0 auto;
+            display: block;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .button-group {
+            margin-bottom: 20px;
+        }
+
+        .option {
+            margin-bottom: 15px;
+        }
+
+        #echo-form {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-image: linear-gradient(to bottom, #e1f5fe, #fce4ec);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #echo-form textarea {
+            height: 80px;
+            resize: vertical;
+            width: 90%;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 20px;
+        }
+        
+        .form-control {
+            background-image: linear-gradient(to bottom, #e1f5fe, #fce4ec);
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .left-column, .right-column {
+                width: 100%;
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin: 10px 0;
+            }
+
+            .button-group {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 5px;
+            }
+
+            button {
+                padding: 8px 16px;
+                font-size: 14px;
+                margin: 2px;
+            }
+
+            #echo-form {
+                padding: 10px;
+            }
+
+            #echo-form textarea {
+                width: 95%;
+                height: 60px;
+            }
+
+            video {
+                border-radius: 4px;
+            }
+
+            #asr-iframe {
+                height: 400px;
+                border-radius: 4px;
+            }
+        }
+
+        /* 适配横屏模式 */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .container {
+                flex-direction: row;
+            }
+
+            .left-column, .right-column {
+                width: 50%;
+            }
+
+            #asr-iframe {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>愚人数字</h1>
+
+    <div class="container">
+        <div class="left-column">
+            <div class="option">
+                <input id="use-stun" type="checkbox"/>
+                <label for="use-stun">使用STUN服务器</label>
+            </div>
+
+            <div class="button-group">
+                <button id="start" onclick="start()">启动数字人</button>
+                <button id="stop" style="display: none" onclick="stop()">关闭数字人</button>
+                <button class="btn btn-primary" id="btn_start_record">开始记录</button>
+                <button class="btn btn-primary" id="btn_stop_record" disabled>停止记录</button>
+            </div>
+
+            <input type="hidden" id="sessionid" value="0">
+
+            <div id="media">
+                <audio id="audio" autoplay="true"></audio>
+                <video id="video" autoplay="true" playsinline="true"></video>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <form class="form-inline" id="echo-form">
+                <div class="form-group">
+                    <label for="message">你想问啥呢?</label>
+                    <br/>
+                    <textarea class="form-control" id="message" rows="3">你好呀</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">发送</button>
+            </form>
+            <iframe id="asr-iframe" src="asr/index.html"></iframe>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+    <script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>
+    <script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.min.js"></script>
+
+    <script type="text/javascript" charset="utf-8">
+        $(document).ready(function() {
+            $('#echo-form').on('submit', function(e) {
+                e.preventDefault();
+                var message = $('#message').val();
+                console.log('Sending: ' + message);
+                console.log('sessionid: ',document.getElementById('sessionid').value);
+                fetch('/human', {
+                    body: JSON.stringify({
+                        text: message,
+                        type: 'chat',
+                        interrupt: false,
+                        sessionid: parseInt(document.getElementById('sessionid').value),
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                });
+                $('#message').val('');
+            });
+
+            $('#btn_start_record').click(function() {
+                console.log('Starting recording...');
+                fetch('/record', {
+                    body: JSON.stringify({
+                        type: 'start_record',
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                }).then(function(response) {
+                    if (response.ok) {
+                        console.log('Recording started.');
+                        $('#btn_start_record').prop('disabled', true);
+                        $('#btn_stop_record').prop('disabled', false);
+                    } else {
+                        console.error('Failed to start recording.');
+                    }
+                }).catch(function(error) {
+                    console.error('Error:', error);
+                });
+            });
+
+            $('#btn_stop_record').click(function() {
+                console.log('Stopping recording...');
+                fetch('/record', {
+                    body: JSON.stringify({
+                        type: 'end_record',
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                }).then(function(response) {
+                    if (response.ok) {
+                        console.log('Recording stopped.');
+                        $('#btn_start_record').prop('disabled', false);
+                        $('#btn_stop_record').prop('disabled', true);
+                    } else {
+                        console.error('Failed to stop recording.');
+                    }
+                }).catch(function(error) {
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>语音识别</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        body {
+            margin-left: 0;
+            padding: 20px;
+            background-image: linear-gradient(to bottom, #e1f5fe, #e8f5e9);
+        }
+
+        .div_class_topArea {
+            max-width: 600px;
+            margin: 0 auto;
+            /* 使用线性渐变作为背景 */
+            background-image: linear-gradient(to bottom, #e1f5fe, #e8f5e9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .div_class_recordControl {
+            margin-bottom: 20px;
+        }
+
+        #wssip {
+            margin-bottom: 10px;
+        }
+
+        #info_wslink {
+            color: #007bff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #info_wslink:hover {
+            text-decoration: underline;
+        }
+
+        .recoder_mode_div,
+        #mic_mode_div,
+        #rec_mode_div,
+        #use_itn_div {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        textarea#varHot {
+            height: 80px;
+            resize: vertical;
+        }
+
+        textarea#varArea {
+            height: 150px;
+            resize: vertical;
+            /* 这里设置了一个从浅灰色到白色的线性渐变，方向是从上到下 */
+            background-image: linear-gradient(to bottom, #f0f0f0, #ffffff); 
+        }
+
+        #info_div {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .div_class_buttons {
+            text-align: center;
+        }
+
+        .div_class_buttons button {
+            margin: 5px;
+        }
+
+        audio#audio_record {
+            margin-top: 12px;
+            width: 100%;
+        }
+
+        /* 新增的样式 */
+        .radio-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .radio-group label {
+            margin-right: 15px;
+        }
+
+        .radio-group input[type="radio"] {
+            margin-right: 5px;
+        }
+        
+    </style>
+</head>
+<body>
+
+<div class="div_class_topArea">
+    <div class="div_class_recordControl">
+        <!-- <h3>ASR配置</h3> -->
+        <!-- <p>ASR服务器地址 (必填):</p> -->
+        <input id="wssip" type="text" onchange="addresschange()" value="wss://www.funasr.com:10096/" style="display: none;" >
+        <a id="wsslink" href="#" style="display: none;" onclick="window.open('https://127.0.0.1:10095/', '_blank')"><div id="info_wslink">点击此处手动授权 wss://127.0.0.1:10095/</div></a>
+
+        <div class="recoder_mode_div" style="display: none;">
+            <!-- <p>选择录音模式:</p> -->
+            <div class="radio-group" >
+                <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="mic" checked/>麦克风</label>
+                <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="file" />文件</label>
+            </div>
+        </div>
+
+        <div id="mic_mode_div" style="display: none;">
+            <p>选择ASR模型模式:</p>
+            <div class="radio-group">
+                <label><input name="asr_mode" type="radio" value="2pass" checked/>2pass</label>
+                <label><input name="asr_mode" type="radio" value="online" />Online</label>
+                <label><input name="asr_mode" type="radio" value="offline" />Offline</label>
+            </div>
+        </div>
+
+        <div id="rec_mode_div" style="display:none;">
+            <input type="file" id="upfile">
+        </div>
+
+        <div id="use_itn_div" style="display: none;">
+            <p>反向文本归一化 (ITN):</p>
+            <div class="radio-group">
+                <label><input name="use_itn" type="radio" value="false" checked/>否</label>
+                <label><input name="use_itn" type="radio" value="true" />是</label>
+            </div>
+        </div>
+
+        <div style="display: none;">
+            <p>热词 (每行一个关键词，空格分隔权重，例如 "阿里巴巴 20"):</p>
+            <textarea id="varHot" rows="3">阿里巴巴 20
+hello world 40</textarea>
+        </div>
+
+        <!-- <p>语音识别结果:</p> -->
+        <textarea id="varArea" readonly></textarea>
+
+        <div id="info_div">点击开始</div>
+
+        <div class="div_class_buttons">
+            <button id="btnConnect">连接</button>
+            <button id="btnStart">开始</button>
+            <button id="btnStop">停止</button>
+        </div>
+
+        <audio id="audio_record" type="audio/wav" controls></audio>
+    </div>
+</div>
+
+<script src="recorder-core.js" charset="UTF-8"></script>
+<script src="wav.js" charset="UTF-8"></script>
+<script src="pcm.js" charset="UTF-8"></script>
+<script src="wsconnecter.js" charset="utf-8"></script>
+<script src="main.js" charset="utf-8"></script>
+</body>
+</html>

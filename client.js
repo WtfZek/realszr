@@ -22,7 +22,7 @@ function negotiate() {
         });
     }).then(() => {
         var offer = pc.localDescription;
-        return fetch('/offer', {
+        return fetch('http://192.168.3.100:8010/offer', {
             body: JSON.stringify({
                 sdp: offer.sdp,
                 type: offer.type,

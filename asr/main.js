@@ -346,7 +346,7 @@ function handleWithTimestamp(tmptext,tmptime)
 
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
 async function is_speaking() {
-	const response = await fetch('/is_speaking', {
+	const response = await fetch('http://192.168.3.100:8010/is_speaking', {
 		body: JSON.stringify({
 			sessionid: 0,
 		}),
@@ -392,7 +392,7 @@ function getJsonMessage( jsonMsg ) {
 	{
 		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
 		rec_text=offline_text;
-		fetch('/human', {
+		fetch('http://192.168.3.100:8010/human', {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',

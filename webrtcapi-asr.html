@@ -231,7 +231,7 @@
                 var message = $('#message').val();
                 console.log('Sending: ' + message);
                 console.log('sessionid: ',document.getElementById('sessionid').value);
-                fetch('/human', {
+                fetch('http://192.168.3.100:8010/human', {
                     body: JSON.stringify({
                         text: message,
                         type: 'chat',
@@ -248,7 +248,7 @@
 
             $('#btn_start_record').click(function() {
                 console.log('Starting recording...');
-                fetch('/record', {
+                fetch('http://192.168.3.100:8010/record', {
                     body: JSON.stringify({
                         type: 'start_record',
                     }),
@@ -271,7 +271,7 @@
 
             $('#btn_stop_record').click(function() {
                 console.log('Stopping recording...');
-                fetch('/record', {
+                fetch('http://192.168.3.100:8010/record', {
                     body: JSON.stringify({
                         type: 'end_record',
                     }),

@@ -207,6 +207,20 @@ function drawFrame() {
 
 function stop() {
     document.getElementById('stop').style.display = 'none';
+    // 显示 start 按钮
+    document.getElementById('start').style.display = 'block';
+
+    // 清空 canvas
+    if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 停止并隐藏 videoElement
+    if (videoElement) {
+        videoElement.pause();
+        videoElement.srcObject = null;
+        videoElement.style.display = 'none';
+    }
 
     // close peer connection
     setTimeout(() => {

@@ -4,155 +4,386 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>语音识别</title>
-    <link rel="stylesheet" href="../style.css">
     <style>
+        :root {
+            --primary-color: #4361ee;
+            --primary-hover: #3a56d4;
+            --secondary-color: #f72585;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --background-light: #ffffff;
+            --background-dark: #f8f9fa;
+            --border-color: #e0e0e0;
+            --success-color: #2ec4b6;
+            --warning-color: #ff9f1c;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
         body {
-            margin-left: 0;
-            padding: 20px;
-            background-image: linear-gradient(to bottom, #e1f5fe, #e8f5e9);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.5;
         }
 
-        .div_class_topArea {
-            max-width: 600px;
-            margin: 0 auto;
-            /* 使用线性渐变作为背景 */
-            background-image: linear-gradient(to bottom, #e1f5fe, #e8f5e9);
-            padding: 20px;
+        .asr-container {
+            width: 100%;
+            border-radius: var(--border-radius);
+            /*overflow: hidden;*/
+        }
+
+        .control-section {
+            margin-bottom: 16px;
+            margin-right: 26px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 输入框样式 */
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: var(--transition);
         }
 
-        .div_class_recordControl {
-            margin-bottom: 20px;
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
         }
 
-        #wssip {
-            margin-bottom: 10px;
+        /* 结果显示区域样式 */
+        #varArea {
+            width: 100%;
+            height: 130px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            background-color: var(--background-light);
+            transition: var(--transition);
         }
 
-        #info_wslink {
-            color: #007bff;
-            text-decoration: none;
+        #varArea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+        }
+
+        /* 状态提示 */
+        #info_div {
+            margin-bottom: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+
+        /* 按钮区域 */
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        button {
+            padding: 10px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: var(--transition);
+            min-width: 80px;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #btnStart {
+            background-color: var(--success-color);
+        }
+
+        #btnStart:hover {
+            background-color: #25b0a3;
+        }
+
+        #btnStop {
+            background-color: var(--warning-color);
+        }
+
+        #btnStop:hover {
+            background-color: #f59000;
+        }
+
+        /* 音频播放器 */
+        audio {
+            width: 100%;
+            height: 40px;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        /* 单选按钮组样式 */
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
             cursor: pointer;
         }
 
-        #info_wslink:hover {
-            text-decoration: underline;
+        .radio-option input[type="radio"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            margin-right: 8px;
+            display: grid;
+            place-content: center;
+            transition: var(--transition);
         }
 
-        .recoder_mode_div,
-        #mic_mode_div,
-        #rec_mode_div,
-        #use_itn_div {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
+        .radio-option input[type="radio"]::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            transform: scale(0);
+            transition: var(--transition);
         }
 
-        textarea#varHot {
-            height: 80px;
-            resize: vertical;
+        .radio-option input[type="radio"]:checked {
+            border-color: var(--primary-color);
         }
 
-        textarea#varArea {
-            height: 150px;
-            resize: vertical;
-            /* 这里设置了一个从浅灰色到白色的线性渐变，方向是从上到下 */
-            background-image: linear-gradient(to bottom, #f0f0f0, #ffffff); 
+        .radio-option input[type="radio"]:checked::before {
+            transform: scale(1);
         }
 
-        #info_div {
-            margin-bottom: 10px;
-            font-weight: bold;
+        .radio-option label {
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
         }
 
-        .div_class_buttons {
-            text-align: center;
-        }
-
-        .div_class_buttons button {
-            margin: 5px;
-        }
-
-        audio#audio_record {
-            margin-top: 12px;
+        /* 文件上传样式 */
+        .file-upload {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
             width: 100%;
         }
 
-        /* 新增的样式 */
-        .radio-group {
-            display: flex;
-            align-items: center;
+        .file-upload-label {
+            display: block;
+            padding: 10px 16px;
+            background-color: var(--background-dark);
+            color: var(--text-primary);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: var(--transition);
         }
 
-        .radio-group label {
-            margin-right: 15px;
+        .file-upload-label:hover {
+            background-color: #f0f0f0;
         }
 
-        .radio-group input[type="radio"] {
-            margin-right: 5px;
+        .file-upload input[type="file"] {
+            font-size: 100px;
+            opacity: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            cursor: pointer;
         }
-        
+
+        /* 热词输入框 */
+        #varHot {
+            width: 100%;
+            height: 80px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        #varHot:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+        }
+
+        /* 分割线 */
+        .divider {
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 16px 0;
+        }
+
+        /* 标题样式 */
+        h4 {
+            margin: 0 0 12px 0;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 15px;
+        }
     </style>
 </head>
 <body>
+<div class="asr-container">
+    <!-- 隐藏的配置项 -->
+    <input id="wssip" type="text" onchange="addresschange()" value="wss://www.funasr.com:10096/" class="hidden">
+    <a id="wsslink" href="#" class="hidden" onclick="window.open('https://127.0.0.1:10095/', '_blank')">
+        <div id="info_wslink">点击此处手动授权 wss://127.0.0.1:10095/</div>
+    </a>
 
-<div class="div_class_topArea">
-    <div class="div_class_recordControl">
-        <!-- <h3>ASR配置</h3> -->
-        <!-- <p>ASR服务器地址 (必填):</p> -->
-        <input id="wssip" type="text" onchange="addresschange()" value="wss://www.funasr.com:10096/" style="display: none;" >
-        <a id="wsslink" href="#" style="display: none;" onclick="window.open('https://127.0.0.1:10095/', '_blank')"><div id="info_wslink">点击此处手动授权 wss://127.0.0.1:10095/</div></a>
-
-        <div class="recoder_mode_div" style="display: none;">
-            <!-- <p>选择录音模式:</p> -->
-            <div class="radio-group" >
-                <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="mic" checked/>麦克风</label>
-                <label><input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="file" />文件</label>
+    <div class="recoder_mode_div hidden">
+        <div class="radio-group">
+            <div class="radio-option">
+                <input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="mic" checked id="mic-radio">
+                <label for="mic-radio">麦克风</label>
+            </div>
+            <div class="radio-option">
+                <input name="recoder_mode" onclick="on_recoder_mode_change()" type="radio" value="file" id="file-radio">
+                <label for="file-radio">文件</label>
             </div>
         </div>
+    </div>
 
-        <div id="mic_mode_div" style="display: none;">
-            <p>选择ASR模型模式:</p>
+    <!-- 结果区域 -->
+    <div class="control-section">
+        <h4>语音识别结果</h4>
+        <textarea id="varArea" readonly placeholder="识别结果将显示在这里..."></textarea>
+    </div>
+
+    <!-- 状态提示 -->
+    <div id="info_div">点击开始按钮启动语音识别</div>
+
+    <!-- 按钮区域 -->
+    <div class="button-group">
+        <button id="btnConnect">连接</button>
+        <button id="btnStart">开始</button>
+        <button id="btnStop" disabled>停止</button>
+    </div>
+
+    <!-- 音频播放器 -->
+    <audio id="audio_record" type="audio/wav" controls></audio>
+
+    <!-- 高级设置区域 -->
+    <div class="divider"></div>
+
+    <div id="advanced-settings" class="hidden">
+        <!-- ASR模型选择 -->
+        <div id="mic_mode_div" class="control-section">
+            <h4>选择ASR模型模式</h4>
             <div class="radio-group">
-                <label><input name="asr_mode" type="radio" value="2pass" checked/>2pass</label>
-                <label><input name="asr_mode" type="radio" value="online" />Online</label>
-                <label><input name="asr_mode" type="radio" value="offline" />Offline</label>
+                <div class="radio-option">
+                    <input name="asr_mode" type="radio" value="2pass" id="2pass-radio" checked>
+                    <label for="2pass-radio">2pass</label>
+                </div>
+                <div class="radio-option">
+                    <input name="asr_mode" type="radio" value="online" id="online-radio">
+                    <label for="online-radio">Online</label>
+                </div>
+                <div class="radio-option">
+                    <input name="asr_mode" type="radio" value="offline" id="offline-radio">
+                    <label for="offline-radio">Offline</label>
+                </div>
             </div>
         </div>
 
-        <div id="rec_mode_div" style="display:none;">
-            <input type="file" id="upfile">
+        <!-- 文件上传 -->
+        <div id="rec_mode_div" class="control-section hidden">
+            <h4>选择音频文件</h4>
+            <div class="file-upload">
+                <label for="upfile" class="file-upload-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; vertical-align: text-bottom;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    选择音频文件
+                </label>
+                <input type="file" id="upfile" accept="audio/*">
+            </div>
         </div>
 
-        <div id="use_itn_div" style="display: none;">
-            <p>反向文本归一化 (ITN):</p>
+        <!-- ITN选项 -->
+        <div id="use_itn_div" class="control-section">
+            <h4>反向文本归一化 (ITN)</h4>
             <div class="radio-group">
-                <label><input name="use_itn" type="radio" value="false" checked/>否</label>
-                <label><input name="use_itn" type="radio" value="true" />是</label>
+                <div class="radio-option">
+                    <input name="use_itn" type="radio" value="false" id="itn-false" checked>
+                    <label for="itn-false">否</label>
+                </div>
+                <div class="radio-option">
+                    <input name="use_itn" type="radio" value="true" id="itn-true">
+                    <label for="itn-true">是</label>
+                </div>
             </div>
         </div>
 
-        <div style="display: none;">
-            <p>热词 (每行一个关键词，空格分隔权重，例如 "阿里巴巴 20"):</p>
+        <!-- 热词 -->
+        <div class="control-section hidden">
+            <h4>热词设置</h4>
+            <p style="margin: 0 0 8px 0; color: var(--text-secondary); font-size: 13px;">每行一个关键词，空格分隔权重，例如 "阿里巴巴 20"</p>
             <textarea id="varHot" rows="3">阿里巴巴 20
 hello world 40</textarea>
         </div>
-
-        <!-- <p>语音识别结果:</p> -->
-        <textarea id="varArea" readonly></textarea>
-
-        <div id="info_div">点击开始</div>
-
-        <div class="div_class_buttons">
-            <button id="btnConnect">连接</button>
-            <button id="btnStart">开始</button>
-            <button id="btnStop">停止</button>
-        </div>
-
-        <audio id="audio_record" type="audio/wav" controls></audio>
     </div>
+
+    <!-- 显示/隐藏高级设置按钮 -->
+    <button id="toggle-advanced" style="width: 100%; background-color: var(--background-dark); color: var(--text-primary);">
+        显示高级设置
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: text-bottom;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    </button>
 </div>
 
 <script src="recorder-core.js" charset="UTF-8"></script>
@@ -160,5 +391,47 @@ hello world 40</textarea>
 <script src="pcm.js" charset="UTF-8"></script>
 <script src="wsconnecter.js" charset="utf-8"></script>
 <script src="main.js" charset="utf-8"></script>
+<script>
+    // 高级设置切换
+    document.getElementById('toggle-advanced').addEventListener('click', function() {
+        const advancedSettings = document.getElementById('advanced-settings');
+        const isHidden = advancedSettings.classList.contains('hidden');
+
+        if (isHidden) {
+            advancedSettings.classList.remove('hidden');
+            this.innerHTML = `
+                    隐藏高级设置
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: text-bottom;">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                `;
+        } else {
+            advancedSettings.classList.add('hidden');
+            this.innerHTML = `
+                    显示高级设置
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: text-bottom;">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                `;
+        }
+    });
+
+    // 初始化按钮状态
+    document.addEventListener('DOMContentLoaded', function() {
+        const btnStop = document.getElementById('btnStop');
+        btnStop.disabled = true;
+
+        // 针对按钮状态的事件监听
+        document.getElementById('btnStart').addEventListener('click', function() {
+            this.disabled = true;
+            btnStop.disabled = false;
+        });
+
+        document.getElementById('btnStop').addEventListener('click', function() {
+            this.disabled = true;
+            document.getElementById('btnStart').disabled = false;
+        });
+    });
+</script>
 </body>
 </html>

@@ -10,83 +10,161 @@
             margin: 0;
             padding: 0;
             background-image: linear-gradient(to bottom, #e1f5fe, #f1f8e9);
+            overflow: hidden;
         }
 
-        .container {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px;
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .left-column, .right-column {
-            width: 50%;
-            padding: 20px;
-            background-image: linear-gradient(to bottom, #e1f5fe, #f1f8e9);
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            text-align: center;
+        .main-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('/static/bg.png');
+            background-color: rgb(90, 60, 120); /* 这会作为背景图片加载前或图片有透明部分时的底色 */
+            background-size: cover; /* 让图片覆盖整个容器 */
+            background-position: center; /* 居中显示图片 */
+            background-repeat: no-repeat; /* 防止图片平铺 */
         }
 
         #media {
-            text-align: center;
-        }
-
-        video {
             width: 100%;
-            max-width: 600px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            margin-bottom: 10px;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        #asr-iframe {
+        #canvas {
+            position: absolute;
+            z-index: 1000; /* 确保canvas在所有图层上方 */
+            cursor: default;
+        }
+
+        #canvas.draggable {
+            cursor: move; /* 当可拖动时改变鼠标样式 */
+        }
+
+        #canvas-status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #666;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            z-index: 1001;
+        }
+
+        /* 设置按钮样式 */
+        #settings-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            z-index: 1002;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s ease;
+        }
+
+        #settings-button:hover {
+            transform: scale(1.1);
+        }
+
+        #settings-button img {
+            width: 30px;
+            height: 30px;
+        }
+
+        /* 弹窗样式 */
+        #settings-modal {
+            display: none;
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 320px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            z-index: 1003;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .close-button {
+            background: none;
             border: none;
-            width: 100%;
-            max-width: 600px;
-            height: 500px;
-            margin: 0 auto;
-            display: block;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
         }
 
-        .button-group {
+        .modal-section {
             margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
         }
 
-        .option {
+        .modal-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #444;
+        }
+
+        /* 表单样式 */
+        .form-group {
             margin-bottom: 15px;
         }
 
-        #echo-form {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-image: linear-gradient(to bottom, #e1f5fe, #fce4ec);
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        #echo-form textarea {
-            height: 80px;
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
             resize: vertical;
-            width: 90%;
-            margin-bottom: 10px;
         }
 
         button {
-            padding: 10px 20px;
+            padding: 8px 16px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            margin: 5px;
-            font-size: 16px;
+            font-size: 14px;
+            margin-right: 5px;
+            margin-bottom: 5px;
         }
 
         button:hover {
@@ -98,200 +176,462 @@
             cursor: not-allowed;
         }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 24px;
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
-        h2 {
-            text-align: center;
-            font-size: 20px;
-        }
-        
-        .form-control {
-            background-image: linear-gradient(to bottom, #e1f5fe, #fce4ec);
-            border: none;
-            border-radius: 4px;
-            padding: 10px;
-        }
-
-        /* 移动端适配 */
+        /* 响应式样式 */
         @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-                padding: 10px;
-                gap: 10px;
+            #settings-modal {
+                width: 90%;
+                right: 5%;
+                max-height: 70vh;
             }
 
-            .left-column, .right-column {
-                width: 100%;
-                padding: 10px;
+            #settings-button {
+                width: 40px;
+                height: 40px;
             }
 
-            h1 {
-                font-size: 20px;
-                margin: 10px 0;
-            }
-
-            .button-group {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 5px;
-            }
-
-            button {
-                padding: 8px 16px;
-                font-size: 14px;
-                margin: 2px;
-            }
-
-            #echo-form {
-                padding: 10px;
-            }
-
-            #echo-form textarea {
-                width: 95%;
-                height: 60px;
-            }
-
-            video {
-                border-radius: 4px;
-            }
-
-            #asr-iframe {
-                height: 400px;
-                border-radius: 4px;
+            #settings-button img {
+                width: 24px;
+                height: 24px;
             }
         }
 
-        /* 适配横屏模式 */
-        @media (max-width: 768px) and (orientation: landscape) {
-            .container {
-                flex-direction: row;
-            }
+        /* 隐藏元素 */
+        #audio {
+            display: none;
+        }
 
-            .left-column, .right-column {
-                width: 50%;
-            }
-
-            #asr-iframe {
-                height: 300px;
-            }
+        /* 遮罩层 */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /*background-color: rgba(0, 0, 0, 0.5);*/
+            z-index: 1001;
         }
     </style>
 </head>
 <body>
-    <h1>愚人数字</h1>
+<div class="main-container">
+    <div id="media">
+        <audio id="audio" autoplay="true"></audio>
+        <canvas id="canvas"></canvas>
+        <canvas id="canvasOrigin"></canvas>
+        <div id="canvas-status">按下空格键并点击画布可进行拖动</div>
+    </div>
 
-    <div class="container">
-        <div class="left-column">
+    <!-- 设置按钮 -->
+    <div id="settings-button">
+        <img src="settings-icon.png" alt="设置" >
+    </div>
+
+    <!-- 弹窗遮罩层 -->
+    <div id="modal-overlay"></div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal">
+        <div class="modal-header">
+            <h2>控制面板</h2>
+            <button class="close-button" id="close-modal">&times;</button>
+        </div>
+
+        <div class="modal-section">
+            <div class="section-title">数字人控制</div>
             <div class="option">
                 <input id="use-stun" type="checkbox"/>
                 <label for="use-stun">使用STUN服务器</label>
             </div>
-
             <div class="button-group">
                 <button id="start" onclick="start()">启动数字人</button>
                 <button id="stop" style="display: none" onclick="stop()">关闭数字人</button>
+            </div>
+            <input type="hidden" id="sessionid" value="0">
+        </div>
+
+        <div class="modal-section">
+            <div class="section-title">录制控制</div>
+            <div class="button-group">
                 <button class="btn btn-primary" id="btn_start_record">开始记录</button>
                 <button class="btn btn-primary" id="btn_stop_record" disabled>停止记录</button>
             </div>
-
-            <input type="hidden" id="sessionid" value="0">
-
-            <div id="media">
-                <audio id="audio" autoplay="true"></audio>
-                <video id="video" autoplay="true" playsinline="true"></video>
-            </div>
         </div>
 
-        <div class="right-column">
+        <div class="modal-section">
+            <div class="section-title">对话</div>
             <form class="form-inline" id="echo-form">
                 <div class="form-group">
                     <label for="message">你想问啥呢?</label>
-                    <br/>
                     <textarea class="form-control" id="message" rows="3">你好呀</textarea>
                 </div>
                 <button type="submit" class="btn btn-primary">发送</button>
             </form>
-            <iframe id="asr-iframe" src="asr/index.html"></iframe>
+        </div>
+
+        <div class="modal-section">
+            <div class="section-title">ASR</div>
+            <iframe id="asr-iframe" src="asr/index.html" style="width:100%; height:300px;"></iframe>
+        </div>
+
+        <div class="modal-section">
+            <div class="section-title">参数设置</div>
+            <div class="form-group">
+                <label for="bgColorPicker">背景颜色</label>
+                <input type="color" id="bgColorPicker" value="#31bc78">
+            </div>
+            <div class="form-group">
+                <label for="toleranceSlider">绿幕容差</label>
+                <input type="range" id="toleranceSlider" min="0" max="255" value="60">
+                <span id="toleranceValue">60</span>
+            </div>
+            <div class="form-group">
+                <label for="xOffsetSlider">数字人X坐标</label>
+                <input type="range" id="xOffsetSlider" min="-1900" max="1900" value="0">
+                <span id="xOffsetValue">0</span>
+            </div>
+            <div class="form-group">
+                <label for="yOffsetSlider">数字人Y坐标</label>
+                <input type="range" id="yOffsetSlider" min="-1900" max="1900" value="0">
+                <span id="yOffsetValue">0</span>
+            </div>
+            <div class="form-group">
+                <label for="customWidthSlider">视频宽度</label>
+                <input type="range" id="customWidthSlider" min="100" max="1900" value="500">
+                <span id="customWidthValue">500</span>
+            </div>
+            <div class="form-group">
+                <label for="customHeightSlider">视频高度</label>
+                <input type="range" id="customHeightSlider" min="100" max="1900" value="900">
+                <span id="customHeightValue">900</span>
+            </div>
+            <div class="form-group">
+                <input type="checkbox" id="ratioLockCheckbox">
+                <label for="ratioLockCheckbox">锁定视频比例</label>
+            </div>
+            <div class="modal-section">
+                <div class="section-title">背景设置</div>
+                <div class="form-group">
+                    <label for="backgroundUpload">上传背景图片</label>
+                    <input type="file" id="backgroundUpload" accept="image/*">
+                </div>
+            </div>
         </div>
     </div>
+</div>
 
-    <script src="client.js"></script>
-    <script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>
-    <script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.min.js"></script>
+<script src="client.js"></script>
+<script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>
+<script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <script type="text/javascript" charset="utf-8">
-        $(document).ready(function() {
-            $('#echo-form').on('submit', function(e) {
-                e.preventDefault();
-                var message = $('#message').val();
-                console.log('Sending: ' + message);
-                console.log('sessionid: ',document.getElementById('sessionid').value);
-                fetch('http://192.168.3.100:8010/human', {
-                    body: JSON.stringify({
-                        text: message,
-                        type: 'chat',
-                        interrupt: false,
-                        sessionid: parseInt(document.getElementById('sessionid').value),
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                });
-                $('#message').val('');
+<script type="text/javascript" charset="utf-8">
+    $(document).ready(function() {
+        // 设置弹窗控制
+        const settingsButton = document.getElementById('settings-button');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeModalButton = document.getElementById('close-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+
+        settingsButton.addEventListener('click', function() {
+            settingsModal.style.display = 'block';
+            modalOverlay.style.display = 'block';
+        });
+
+        closeModalButton.addEventListener('click', function() {
+            settingsModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+        });
+
+        modalOverlay.addEventListener('click', function() {
+            settingsModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+        });
+
+        // 原有代码
+        $('#echo-form').on('submit', function(e) {
+            e.preventDefault();
+            var message = $('#message').val();
+            console.log('Sending: ' + message);
+            console.log('sessionid: ',document.getElementById('sessionid').value);
+            fetch('http://192.168.3.100:8010/human', {
+                body: JSON.stringify({
+                    text: message,
+                    type: 'chat',
+                    interrupt: false,
+                    sessionid: parseInt(document.getElementById('sessionid').value),
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                method: 'POST'
             });
+            $('#message').val('');
+            // 发送后关闭弹窗
+            settingsModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+        });
 
-            $('#btn_start_record').click(function() {
-                console.log('Starting recording...');
-                fetch('http://192.168.3.100:8010/record', {
-                    body: JSON.stringify({
-                        type: 'start_record',
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                }).then(function(response) {
-                    if (response.ok) {
-                        console.log('Recording started.');
-                        $('#btn_start_record').prop('disabled', true);
-                        $('#btn_stop_record').prop('disabled', false);
-                    } else {
-                        console.error('Failed to start recording.');
-                    }
-                }).catch(function(error) {
-                    console.error('Error:', error);
-                });
-            });
-
-            $('#btn_stop_record').click(function() {
-                console.log('Stopping recording...');
-                fetch('http://192.168.3.100:8010/record', {
-                    body: JSON.stringify({
-                        type: 'end_record',
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                }).then(function(response) {
-                    if (response.ok) {
-                        console.log('Recording stopped.');
-                        $('#btn_start_record').prop('disabled', false);
-                        $('#btn_stop_record').prop('disabled', true);
-                    } else {
-                        console.error('Failed to stop recording.');
-                    }
-                }).catch(function(error) {
-                    console.error('Error:', error);
-                });
+        $('#btn_start_record').click(function() {
+            console.log('Starting recording...');
+            fetch('http://192.168.3.100:8010/record', {
+                body: JSON.stringify({
+                    type: 'start_record',
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                method: 'POST'
+            }).then(function(response) {
+                if (response.ok) {
+                    console.log('Recording started.');
+                    $('#btn_start_record').prop('disabled', true);
+                    $('#btn_stop_record').prop('disabled', false);
+                } else {
+                    console.error('Failed to start recording.');
+                }
+            }).catch(function(error) {
+                console.error('Error:', error);
             });
         });
-    </script>
+
+        $('#btn_stop_record').click(function() {
+            console.log('Stopping recording...');
+            fetch('http://192.168.3.100:8010/record', {
+                body: JSON.stringify({
+                    type: 'end_record',
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                method: 'POST'
+            }).then(function(response) {
+                if (response.ok) {
+                    console.log('Recording stopped.');
+                    $('#btn_start_record').prop('disabled', false);
+                    $('#btn_stop_record').prop('disabled', true);
+                } else {
+                    console.error('Failed to stop recording.');
+                }
+            }).catch(function(error) {
+                console.error('Error:', error);
+            });
+        });
+
+        // Canvas拖动功能实现
+        const canvas = document.getElementById('canvas');
+        const statusElement = document.getElementById('canvas-status');
+        const xOffsetSlider = document.getElementById('xOffsetSlider');
+        const xOffsetValue = document.getElementById('xOffsetValue');
+        const yOffsetSlider = document.getElementById('yOffsetSlider');
+        const yOffsetValue = document.getElementById('yOffsetValue');
+        let isDraggable = false;
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        // 监听空格键
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                isDraggable = true;
+                canvas.classList.add('draggable');
+                statusElement.textContent = '拖动模式已启用 - 点击并拖动画布';
+                statusElement.style.color = '#007bff';
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.code === 'Space') {
+                isDraggable = false;
+                canvas.classList.remove('draggable');
+                statusElement.textContent = '按下空格键并点击画布可进行拖动';
+                statusElement.style.color = '#666';
+            }
+        });
+
+        // 鼠标事件处理
+        canvas.addEventListener('mousedown', function(e) {
+            if (isDraggable) {
+                isDragging = true;
+
+                // 计算鼠标点击位置与Canvas左上角的偏移
+                const rect = canvas.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+
+                // 防止拖动时选择其他元素
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                // 计算新位置
+                const mediaDiv = document.getElementById('media');
+                const mediaDivRect = mediaDiv.getBoundingClientRect();
+
+                // 相对于media容器定位
+                const left = e.clientX - mediaDivRect.left - offsetX;
+                const top = e.clientY - mediaDivRect.top - offsetY;
+
+                // 设置Canvas位置
+                canvas.style.left = left + 'px';
+                canvas.style.top = top + 'px';
+
+                // 更新滑块值和显示内容
+                xOffsetSlider.value = left;
+                xOffsetValue.textContent = left;
+                yOffsetSlider.value = top;
+                yOffsetValue.textContent = top;
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        // 触摸事件处理（移动设备）
+        canvas.addEventListener('touchstart', function(e) {
+            if (isDraggable && e.touches.length === 1) {
+                isDragging = true;
+
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                offsetX = touch.clientX - rect.left;
+                offsetY = touch.clientY - rect.top;
+
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging && e.touches.length === 1) {
+                const touch = e.touches[0];
+                const mediaDiv = document.getElementById('media');
+                const mediaDivRect = mediaDiv.getBoundingClientRect();
+
+                const left = touch.clientX - mediaDivRect.left - offsetX;
+                const top = touch.clientY - mediaDivRect.top - offsetY;
+
+                canvas.style.left = left + 'px';
+                canvas.style.top = top + 'px';
+
+                // 更新滑块值和显示内容
+                xOffsetSlider.value = left;
+                xOffsetValue.textContent = left;
+                yOffsetSlider.value = top;
+                yOffsetValue.textContent = top;
+
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+
+        // 新增：处理参数设置控件
+        const bgColorPicker = document.getElementById('bgColorPicker');
+        const toleranceSlider = document.getElementById('toleranceSlider');
+        const toleranceValue = document.getElementById('toleranceValue');
+        // const xOffsetSlider = document.getElementById('xOffsetSlider');
+        // const xOffsetValue = document.getElementById('xOffsetValue');
+        // const yOffsetSlider = document.getElementById('yOffsetSlider');
+        // const yOffsetValue = document.getElementById('yOffsetValue');
+        const customWidthSlider = document.getElementById('customWidthSlider');
+        const customWidthValue = document.getElementById('customWidthValue');
+        const customHeightSlider = document.getElementById('customHeightSlider');
+        const customHeightValue = document.getElementById('customHeightValue');
+        const backgroundUpload = document.getElementById('backgroundUpload');
+        const mainContainer = document.querySelector('.main-container');
+        // 新增：锁定比例勾选框
+        // 新增：锁定比例勾选框
+        const ratioLockCheckbox = document.getElementById('ratioLockCheckbox');
+        let isRatioLocked = false;
+        ratioLockCheckbox.addEventListener('change', function () {
+            isRatioLocked = this.checked;
+        });
+
+        // 记录初始视频宽高（这里假设视频元素有id为video的元素，需根据实际情况调整）
+        const videoElement = document.getElementById('video');
+        let videoRatioWidth = videoElement? videoElement.videoWidth : null;
+        let videoRatioHeight = videoElement? videoElement.videoHeight : null;
+
+        ratioLockCheckbox.addEventListener('change', function() {
+            isRatioLocked = this.checked;
+        });
+
+        backgroundUpload.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    mainContainer.style.backgroundImage = `url(${e.target.result})`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 初始化背景颜色
+        bgColorPicker.addEventListener('input', function() {
+            const color = bgColorPicker.value;
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            bgColorRGB = { r, g, b };
+        });
+
+        // 初始化绿幕容差
+        toleranceSlider.addEventListener('input', function() {
+            tolerance = parseInt(toleranceSlider.value);
+            toleranceValue.textContent = tolerance;
+        });
+
+        // 初始化数字人X坐标
+        xOffsetSlider.addEventListener('input', function() {
+            const value = parseInt(xOffsetSlider.value);
+            xOffsetValue.textContent = value;
+            canvas.style.left = value + 'px';
+        });
+
+        // 初始化数字人Y坐标
+        yOffsetSlider.addEventListener('input', function() {
+            const value = parseInt(yOffsetSlider.value);
+            yOffsetValue.textContent = value;
+            canvas.style.top = value + 'px';
+        });
+
+        // 初始化视频宽度，考虑锁定比例
+        customWidthSlider.addEventListener('input', function () {
+            customWidth = parseInt(customWidthSlider.value);
+            customWidthValue.textContent = customWidth;
+
+            if (isRatioLocked) {
+                const newHeight = Math.round(customWidth / aspectRatio);
+                customHeight = newHeight;
+                customHeightSlider.value = newHeight;
+                customHeightValue.textContent = newHeight;
+            }
+        });
+
+        // 初始化视频高度，考虑锁定比例
+        customHeightSlider.addEventListener('input', function () {
+            customHeight = parseInt(customHeightSlider.value);
+            customHeightValue.textContent = customHeight;
+
+            if (isRatioLocked) {
+                const newWidth = Math.round(customHeight * aspectRatio);
+                customWidth = newWidth;
+                customWidthSlider.value = newWidth;
+                customWidthValue.textContent = newWidth;
+            }
+        });
+    });
+</script>
 </body>
 </html>

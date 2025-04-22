@@ -731,9 +731,17 @@
                     <div class="form-group">
                         <label for="toleranceSlider">绿幕容差</label>
                         <div class="range-container">
-                            <input type="range" id="toleranceSlider" min="0" max="255" value="72">
-<!--                            <span class="range-value" id="toleranceValue">72</span>-->
-                            <input type="number" class="range-value" id="toleranceValue" min="0" max="255" value="72">
+                            <input type="range" id="toleranceSlider" min="0" max="255" value="50">
+<!--                            <span class="range-value" id="toleranceValue">50</span>-->
+                            <input type="number" class="range-value" id="toleranceValue" min="0" max="255" value="50">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="toleranceSlider">抗锯齿系数</label>
+                        <div class="range-container">
+                            <input type="range" id="antialiasingSlider" min="0" max="255" value="50">
+                            <!--                            <span class="range-value" id="toleranceValue">50</span>-->
+                            <input type="number" class="range-value" id="antialiasingValue" min="0" max="50" value="5">
                         </div>
                     </div>
                 </div>
@@ -1351,6 +1359,18 @@
                     customWidthSlider.value = newWidth;
                     customWidthValue.value = newWidth;
                 }
+            });
+
+            // 新增：抗锯齿拖动条
+            const antialiasingSlider = document.getElementById('antialiasingSlider');
+            const antialiasingValue = document.getElementById('antialiasingValue');
+
+            // 初始化抗锯齿强度
+            // 在webrtcapi-asr.html中修改事件监听器
+            antialiasingSlider.addEventListener('input', function() {
+                const value = parseInt(antialiasingSlider.value);
+                antialiasingValue.textContent = value;
+                adjustAntiAliasingStrength(value);
             });
         });
     </script>

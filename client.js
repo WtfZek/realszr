@@ -14,8 +14,8 @@ let xOffset = 0;
 let yOffset = 0;
 
 // 新增：视频高度和宽度
-let customWidth = 500;
-let customHeight = 900;
+let customWidth = 0;
+let customHeight = 0;
 
 // 控制使用绿幕还是蓝幕的变量，true 为绿幕，false 为蓝幕
 let useGreenScreen = false;
@@ -170,17 +170,26 @@ function drawFrame() {
         isFirstFrame = false;
     }
 
+    const bgColorHSV = rgbToHsv(bgColorRGB.r, bgColorRGB.g, bgColorRGB.b);
+
+
     // 绿幕抠图
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
 
+        // 将当前像素颜色转换为 HSV
+        const pixelHSV = rgbToHsv(r, g, b);
+
         // 检查是否在绿幕颜色范围内
         if (
-            r >= Math.max(0, bgColorRGB.r - tolerance) && r <= Math.min(255, bgColorRGB.r + tolerance) &&
-            g >= Math.max(0, bgColorRGB.g - tolerance) && g <= Math.min(255, bgColorRGB.g + tolerance) &&
-            b >= Math.max(0, bgColorRGB.b - tolerance) && b <= Math.min(255, bgColorRGB.b + tolerance)
+            // r >= Math.max(0, bgColorRGB.r - tolerance) && r <= Math.min(255, bgColorRGB.r + tolerance) &&
+            // g >= Math.max(0, bgColorRGB.g - tolerance) && g <= Math.min(255, bgColorRGB.g + tolerance) &&
+            // b >= Math.max(0, bgColorRGB.b - tolerance) && b <= Math.min(255, bgColorRGB.b + tolerance)
+            pixelHSV.h >= Math.max(0, bgColorHSV.h - tolerance) && pixelHSV.h <= Math.min(360, bgColorHSV.h + tolerance) &&
+            pixelHSV.s >= Math.max(0, bgColorHSV.s - tolerance) && pixelHSV.s <= Math.min(100, bgColorHSV.s + tolerance) &&
+            pixelHSV.v >= Math.max(0, bgColorHSV.v - tolerance) && pixelHSV.v <= Math.min(100, bgColorHSV.v + tolerance)
         ) {
             // 设置透明度为 0
             data[i + 3] = 0;
@@ -189,6 +198,12 @@ function drawFrame() {
 
     // 将处理后的像素数据放回 canvas
     ctx.putImageData(imageData, 0, 0);
+
+    // ctx.globalCompositeOperation = 'destination - in';
+    // ctx.filter = 'blur(2px)';
+    // ctx.drawImage(canvas, 0, 0);
+    // ctx.globalCompositeOperation = 'source - over';
+    // ctx.filter = 'none';
 
     // 控制数字人主体坐标
     if (xOffset!== 0 || yOffset!== 0) {

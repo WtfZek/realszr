@@ -60,7 +60,7 @@
             filter: brightness(1.05);
         }
 
-        #canvas-status {
+        .canvas-status {
             position: absolute;
             bottom: 20px;
             left: 50%;
@@ -129,7 +129,7 @@
         }
 
         .modal-scroll-container {
-            max-height: calc(100vh - 80px);
+            max-height: calc(100vh - 220px);
             overflow-y: auto;
             padding: 0 20px 20px 20px;
             scrollbar-width: thin;
@@ -568,7 +568,7 @@
         <audio id="audio" autoplay="true"></audio>
         <canvas id="canvas"></canvas>
         <canvas id="canvasOrigin"></canvas>
-        <div id="canvas-status">按空格键启用拖动模式</div>
+        <div id="canvas-status" class="canvas-status">按空格键可控制数字人</div>
     </div>
 
     <!-- 设置按钮 -->
@@ -801,7 +801,7 @@
                                 <line x1="12" y1="16" x2="12" y2="12"></line>
                                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
                             </svg>
-                            提示: 您也可以按住空格键后直接用鼠标拖动数字人调整位置
+                            提示: 您也可以按住空格键后直接用鼠标拖动数字人调整位置以及滑动滚轮调整大小。
                         </p>
                     </div>
                 </div>
@@ -834,9 +834,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script type="text/javascript" charset="utf-8">
-        $(document).ready(function() {
 
-            start();
+        start();
+
+        $(document).ready(function() {
 
             // 数字人控制面板拖动功能实现
             const settingsModal = document.getElementById('settings-modal');
@@ -1052,7 +1053,7 @@
                 if (e.code === 'Space') {
                     isDraggable = true;
                     canvas.classList.add('draggable');
-                    statusElement.textContent = '拖动模式已开启';
+                    statusElement.textContent = '可拖动位置以及滚轮缩放';
                     statusElement.style.color = 'var(--primary-color)';
                 }
             });
@@ -1152,6 +1153,22 @@
                 isDragging = false;
             });
 
+            // let isAltPressed = false;
+
+            // document.addEventListener('keydown', function(e) {
+            //     if (e.key === 'Alt') {
+            //         isDraggable = true;
+            //     }
+            // });
+            //
+            // document.addEventListener('keyup', function(e) {
+            //     if (e.key === 'Alt') {
+            //         isDraggable = false;
+            //     }
+            // });
+
+
+
             // 处理参数设置控件
             const toleranceSlider = document.getElementById('toleranceSlider');
             const toleranceValue = document.getElementById('toleranceValue');
@@ -1166,7 +1183,7 @@
             // 比例锁定逻辑
             const ratioLockCheckbox = document.getElementById('ratioLockCheckbox');
             let isRatioLocked = false;
-            let aspectRatio = 500/900; // 默认宽高比
+            let aspectRatio = customWidth/customHeight; // 默认宽高比
 
             // 记录初始视频宽高
             const videoElement = document.getElementById('video') || {videoWidth: 500, videoHeight: 900};
@@ -1227,7 +1244,9 @@
                     customHeight = newHeight;
                     customHeightSlider.value = newHeight;
                     customHeightValue.value = newHeight;
+                    canvas.style.height = customHeight + 'px';
                 }
+                canvas.style.width = customWidth + 'px';
             });
 
             // 初始化视频高度，考虑锁定比例
@@ -1240,6 +1259,39 @@
                     customWidth = newWidth;
                     customWidthSlider.value = newWidth;
                     customWidthValue.value = newWidth;
+                    canvas.style.width = customWidth + 'px';
+                }
+                canvas.style.height = customHeight + 'px';
+            });
+
+            document.addEventListener('wheel', function(e) {
+                if (isDraggable) {
+                    const scaleFactor = 0.1; // 缩放比例
+                    let currentWidth = parseInt(canvas.style.width) || videoRatioWidth;
+                    let currentHeight = parseInt(canvas.style.height) || videoRatioHeight;
+
+                    if (e.deltaY < 0) { // 滚轮向上滚动
+                        currentWidth = Math.round(currentWidth * (1 + scaleFactor));
+                        currentHeight = Math.round(currentWidth / aspectRatio);
+                    } else { // 滚轮向下滚动
+                        currentWidth = Math.round(currentWidth * (1 - scaleFactor));
+                        currentHeight = Math.round(currentWidth / aspectRatio);
+                    }
+
+                    // 更新 canvas 宽高
+                    canvas.style.width = currentWidth + 'px';
+                    canvas.style.height = currentHeight + 'px';
+
+                    // 更新滑块值和显示内容
+                    const customWidthSlider = document.getElementById('customWidthSlider');
+                    const customWidthValue = document.getElementById('customWidthValue');
+                    const customHeightSlider = document.getElementById('customHeightSlider');
+                    const customHeightValue = document.getElementById('customHeightValue');
+
+                    customWidthSlider.value = currentWidth;
+                    customWidthValue.value = currentWidth;
+                    customHeightSlider.value = currentHeight;
+                    customHeightValue.value = currentHeight;
                 }
             });
 

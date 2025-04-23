@@ -103,8 +103,15 @@ function start() {
 
                 // 记录视频原始比例
                 if (videoRatioWidth === null && videoRatioHeight === null) {
+                    // 设置局部变量
                     videoRatioWidth = videoElement.videoWidth;
                     videoRatioHeight = videoElement.videoHeight;
+                    
+                    // 同时设置为全局变量，供HTML使用
+                    window.videoRatioWidth = videoElement.videoWidth;
+                    window.videoRatioHeight = videoElement.videoHeight;
+                    
+                    console.log("视频原始尺寸:", videoRatioWidth, "x", videoRatioHeight);
                 }
 
                 // 根据锁定比例和宽度调整高度
@@ -112,9 +119,77 @@ function start() {
                     customHeight = (customWidth / videoRatioWidth) * videoRatioHeight;
                 }
 
-                // 设置 canvas 尺寸 - 当宽高为0或null时使用原始视频尺寸
-                canvas.width = customWidth && customWidth > 0 ? customWidth : videoElement.videoWidth;
-                canvas.height = customHeight && customHeight > 0 ? customHeight : videoElement.videoHeight;
+                // 获取容器尺寸
+                const mediaDiv = document.getElementById('media');
+                const mediaDivRect = mediaDiv.getBoundingClientRect();
+                const containerWidth = mediaDivRect.width;
+                const containerHeight = mediaDivRect.height;
+                
+                // 计算合适的canvas尺寸，确保不超出容器
+                let canvasWidth = customWidth && customWidth > 0 ? customWidth : videoElement.videoWidth;
+                let canvasHeight = customHeight && customHeight > 0 ? customHeight : videoElement.videoHeight;
+                
+                // 如果超出容器，进行缩放
+                if (canvasWidth > containerWidth * 0.9 || canvasHeight > containerHeight * 0.9) {
+                    const scaleFactorW = (containerWidth * 0.9) / canvasWidth;
+                    const scaleFactorH = (containerHeight * 0.9) / canvasHeight;
+                    const scaleFactor = Math.min(scaleFactorW, scaleFactorH);
+                    
+                    canvasWidth = Math.floor(canvasWidth * scaleFactor);
+                    canvasHeight = Math.floor(canvasHeight * scaleFactor);
+                    
+                    // 更新自定义尺寸，以便后续使用
+                    customWidth = canvasWidth;
+                    customHeight = canvasHeight;
+                    
+                    // 更新滑块值
+                    const customWidthSlider = document.getElementById('customWidthSlider');
+                    const customWidthValue = document.getElementById('customWidthValue');
+                    const customHeightSlider = document.getElementById('customHeightSlider');
+                    const customHeightValue = document.getElementById('customHeightValue');
+                    
+                    if (customWidthSlider && customWidthValue) {
+                        customWidthSlider.value = canvasWidth;
+                        customWidthValue.value = canvasWidth;
+                    }
+                    
+                    if (customHeightSlider && customHeightValue) {
+                        customHeightSlider.value = canvasHeight;
+                        customHeightValue.value = canvasHeight;
+                    }
+                }
+
+                // 设置 canvas 尺寸
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+                
+                // 设置Canvas尺寸样式
+                canvas.style.width = canvasWidth + 'px';
+                canvas.style.height = canvasHeight + 'px';
+                
+                // 居中Canvas
+                const centerX = (containerWidth - canvasWidth) / 2;
+                const centerY = (containerHeight - canvasHeight) / 2;
+                canvas.style.left = centerX + 'px';
+                canvas.style.top = centerY + 'px';
+                
+                // 同步更新位置滑块
+                const xOffsetSlider = document.getElementById('xOffsetSlider');
+                const xOffsetValue = document.getElementById('xOffsetValue');
+                const yOffsetSlider = document.getElementById('yOffsetSlider');
+                const yOffsetValue = document.getElementById('yOffsetValue');
+                
+                if (xOffsetSlider && xOffsetValue) {
+                    xOffsetSlider.value = centerX;
+                    xOffsetValue.value = centerX;
+                }
+                
+                if (yOffsetSlider && yOffsetValue) {
+                    yOffsetSlider.value = centerY;
+                    yOffsetValue.value = centerY;
+                }
+                
+                console.log('Video loaded and canvas centered at:', centerX, centerY);
 
                 // 开始绘制视频帧
                 requestAnimationFrame(drawFrame);
@@ -142,7 +217,7 @@ function drawFrame() {
         customHeight = (customWidth / videoRatioWidth) * videoRatioHeight;
     }
 
-    // 更新 canvas 尺寸
+    // 更新 canvas 尺寸 - 使用与视频加载时相同的逻辑
     canvas.width = customWidth && customWidth > 0 ? customWidth : videoElement.videoWidth;
     canvas.height = customHeight && customHeight > 0 ? customHeight : videoElement.videoHeight;
 

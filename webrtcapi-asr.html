@@ -565,7 +565,7 @@
 <body>
 <div class="main-container">
     <div id="media">
-        <audio id="audio" autoplay="true"></audio>
+        <audio id="audio" autoplay="autoplay"></audio>
         <canvas id="canvas"></canvas>
         <canvas id="canvasOrigin"></canvas>
         <div id="canvas-status" class="canvas-status">按住「空格键」可调整数字人，按「Alt」键可调整背景</div>
@@ -671,6 +671,13 @@
                         </svg>
                         对话控制
                     </div>
+                    <!-- <div class="form-group">
+                        <label for="audioDelaySlider">对话延迟控制 (秒)</label>
+                        <div class="range-container">
+                            <input type="range" id="audioDelaySlider" min="0" max="5" value="0" step="0.1">
+                            <input type="number" class="range-value" id="audioDelayValue" min="0" max="5.0" value="0.0" step="0.1">
+                        </div>
+                    </div> -->
                     <form class="form-inline" id="echo-form">
                         <div class="form-group">
                             <label for="message">输入您想与数字人交流的内容</label>
@@ -1224,16 +1231,16 @@
             // 设置弹窗控制
             const settingsButton = document.getElementById('settings-button');
             const closeModalButton = document.getElementById('close-modal');
-            const modalOverlay = document.getElementById('modal-overlay');
+            // const modalOverlay = document.getElementById('modal-overlay');
 
             settingsButton.addEventListener('click', function() {
                 settingsModal.style.display = 'block';
-                modalOverlay.style.display = 'block';
+                // modalOverlay.style.display = 'block';
             });
 
             closeModalButton.addEventListener('click', function() {
                 settingsModal.style.display = 'none';
-                modalOverlay.style.display = 'none';
+                // modalOverlay.style.display = 'none';
             });
 
             // modalOverlay.addEventListener('click', function() {
@@ -1261,8 +1268,8 @@
                 });
                 $('#message').val('');
                 // 发送后关闭弹窗
-                settingsModal.style.display = 'none';
-                modalOverlay.style.display = 'none';
+                // settingsModal.style.display = 'none';
+                // modalOverlay.style.display = 'none';
             });
 
             // 录制控制逻辑
@@ -1509,19 +1516,43 @@
                         customRatioLocked = false;
                     }
                     
-                    // 获取当前canvas的实际尺寸
-                    const canvasCurrentHeight = parseInt(canvas.style.height) || parseInt(customHeightSlider.value);
+                    // 获取当前canvas的实际尺寸和位置
+                    const canvas = document.getElementById('canvas');
+                    const currentWidth = parseInt(canvas.style.width) || parseInt(customWidthSlider.value);
+                    const currentHeight = parseInt(canvas.style.height) || parseInt(customHeightSlider.value);
+                    const currentLeft = parseInt(canvas.style.left) || 0;
+                    const currentTop = parseInt(canvas.style.top) || 0;
+                    
+                    // 计算当前中心点
+                    const centerX = currentLeft + currentWidth / 2;
+                    const centerY = currentTop + currentHeight / 2;
                     
                     // 根据当前高度和原始比例计算新宽度
-                    const newWidth = Math.round(canvasCurrentHeight * aspectRatio);
+                    const newWidth = Math.round(currentHeight * aspectRatio);
                     
                     // 更新宽度值
                     customWidth = newWidth;
                     customWidthSlider.value = newWidth;
                     customWidthValue.value = newWidth;
+                    
+                    // 更新canvas的绘图尺寸
+                    canvas.width = newWidth;
+                    canvas.height = currentHeight;
+                    
+                    // 更新样式尺寸
                     canvas.style.width = newWidth + 'px';
                     
-                    console.log('已根据当前高度调整宽度以匹配原始比例:', canvasCurrentHeight, '高 ×', newWidth, '宽');
+                    // 计算新位置以保持中心点不变
+                    const newLeft = Math.round(centerX - newWidth / 2);
+                    
+                    // 更新位置
+                    canvas.style.left = newLeft + 'px';
+                    
+                    // 更新位置滑块
+                    xOffsetSlider.value = newLeft;
+                    xOffsetValue.value = newLeft;
+                    
+                    console.log('已根据当前高度调整宽度以匹配原始比例:', currentHeight, '高 ×', newWidth, '宽');
                 }
             });
             
@@ -1535,9 +1566,18 @@
                         isRatioLocked = false;
                     }
                     
-                    // 获取当前canvas尺寸，计算当前比例
+                    // 获取当前canvas尺寸和位置
+                    const canvas = document.getElementById('canvas');
                     const currentWidth = parseInt(canvas.style.width) || parseInt(customWidthSlider.value);
                     const currentHeight = parseInt(canvas.style.height) || parseInt(customHeightSlider.value);
+                    const currentLeft = parseInt(canvas.style.left) || 0;
+                    const currentTop = parseInt(canvas.style.top) || 0;
+                    
+                    // 计算中心点位置
+                    const centerX = currentLeft + currentWidth / 2;
+                    const centerY = currentTop + currentHeight / 2;
+                    
+                    // 计算当前比例
                     customAspectRatio = currentWidth / currentHeight;
                     
                     console.log('已锁定自定义比例:', customAspectRatio.toFixed(2), '(宽/高)');
@@ -1814,44 +1854,114 @@
 
             // 为 customWidthValue 添加监听器
             customWidthValue.addEventListener('input', function() {
-                const value = parseInt(this.value);
-                customWidthSlider.value = value;
-                customWidth = value;
-
+                const canvas = document.getElementById('canvas');
+                const currentWidth = parseInt(canvas.style.width);
+                const currentHeight = parseInt(canvas.style.height);
+                const currentLeft = parseInt(canvas.style.left) || 0;
+                const currentTop = parseInt(canvas.style.top) || 0;
+                
+                // 计算当前中心点
+                const centerX = currentLeft + currentWidth / 2;
+                const centerY = currentTop + currentHeight / 2;
+                
+                // 获取新宽度
+                const newWidth = parseInt(this.value);
+                customWidth = newWidth;
+                customWidthSlider.value = newWidth;
+                
+                // 计算新高度（根据比例锁定状态）
+                let newHeight = currentHeight;
                 if (isRatioLocked) {
                     // 使用原始比例
-                    const newHeight = Math.round(value / aspectRatio);
+                    newHeight = Math.round(newWidth / aspectRatio);
                     customHeight = newHeight;
                     customHeightSlider.value = newHeight;
                     customHeightValue.value = newHeight;
                 } else if (customRatioLocked) {
                     // 使用自定义比例
-                    const newHeight = Math.round(value / customAspectRatio);
+                    newHeight = Math.round(newWidth / customAspectRatio);
                     customHeight = newHeight;
                     customHeightSlider.value = newHeight;
                     customHeightValue.value = newHeight;
                 }
+                
+                // 更新canvas的绘图尺寸
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                
+                // 更新样式尺寸
+                canvas.style.width = newWidth + 'px';
+                canvas.style.height = newHeight + 'px';
+                
+                // 计算新位置以保持中心点不变
+                const newLeft = Math.round(centerX - newWidth / 2);
+                const newTop = Math.round(centerY - newHeight / 2);
+                
+                // 更新位置
+                canvas.style.left = newLeft + 'px';
+                canvas.style.top = newTop + 'px';
+                
+                // 更新位置滑块
+                xOffsetSlider.value = newLeft;
+                xOffsetValue.value = newLeft;
+                yOffsetSlider.value = newTop;
+                yOffsetValue.value = newTop;
             });
             
             // 为 customHeightValue 添加监听器
             customHeightValue.addEventListener('input', function() {
-                const value = parseInt(this.value);
-                customHeightSlider.value = value;
-                customHeight = value;
-
+                const canvas = document.getElementById('canvas');
+                const currentWidth = parseInt(canvas.style.width);
+                const currentHeight = parseInt(canvas.style.height);
+                const currentLeft = parseInt(canvas.style.left) || 0;
+                const currentTop = parseInt(canvas.style.top) || 0;
+                
+                // 计算当前中心点
+                const centerX = currentLeft + currentWidth / 2;
+                const centerY = currentTop + currentHeight / 2;
+                
+                // 获取新高度
+                const newHeight = parseInt(this.value);
+                customHeight = newHeight;
+                customHeightSlider.value = newHeight;
+                
+                // 计算新宽度（根据比例锁定状态）
+                let newWidth = currentWidth;
                 if (isRatioLocked) {
                     // 使用原始比例
-                    const newWidth = Math.round(value * aspectRatio);
+                    newWidth = Math.round(newHeight * aspectRatio);
                     customWidth = newWidth;
                     customWidthSlider.value = newWidth;
                     customWidthValue.value = newWidth;
                 } else if (customRatioLocked) {
                     // 使用自定义比例
-                    const newWidth = Math.round(value * customAspectRatio);
+                    newWidth = Math.round(newHeight * customAspectRatio);
                     customWidth = newWidth;
                     customWidthSlider.value = newWidth;
                     customWidthValue.value = newWidth;
                 }
+                
+                // 更新canvas的绘图尺寸
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                
+                // 更新样式尺寸
+                canvas.style.width = newWidth + 'px';
+                canvas.style.height = newHeight + 'px';
+                
+                // 计算新位置以保持中心点不变
+                const newLeft = Math.round(centerX - newWidth / 2);
+                const newTop = Math.round(centerY - newHeight / 2);
+                
+                // 更新位置
+                canvas.style.left = newLeft + 'px';
+                canvas.style.top = newTop + 'px';
+                
+                // 更新位置滑块
+                xOffsetSlider.value = newLeft;
+                xOffsetValue.value = newLeft;
+                yOffsetSlider.value = newTop;
+                yOffsetValue.value = newTop;
             });
 
             // 新增：抗锯齿拖动条
@@ -1872,6 +1982,24 @@
                 antialiasingSlider.value = value;
                 adjustAntiAliasingStrength(value);
             });
+
+            // 初始化音频延迟控制滑块
+            // const audioDelaySlider = document.getElementById('audioDelaySlider');
+            // const audioDelayValue = document.getElementById('audioDelayValue');
+
+            // 为音频延迟滑块添加监听器
+            // audioDelaySlider.addEventListener('input', function() {
+            //     const value = parseFloat(audioDelaySlider.value);
+            //     audioDelayValue.value = value.toFixed(1);
+            //     adjustAudioDelay(value);
+            // });
+
+            // // 为音频延迟数值输入框添加监听器
+            // audioDelayValue.addEventListener('input', function() {
+            //     const value = parseFloat(this.value);
+            //     audioDelaySlider.value = value;
+            //     adjustAudioDelay(value);
+            // });
 
             // 背景位置和缩放调整
             const bgXOffsetSlider = document.getElementById('bgXOffsetSlider');

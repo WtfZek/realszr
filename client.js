@@ -3,6 +3,9 @@ var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 var videoElement;
 
+// 音频延迟变量（单位：毫秒）
+let audioDelay = 0;
+
 // 背景颜色（RGB）
 // var bgColorRGB = { r: 49, g: 188, b: 120 };
 let bgColorRGB = null;
@@ -84,6 +87,8 @@ function start() {
     }
 
     pc = new RTCPeerConnection(config);
+    // 设置为全局变量，便于其他函数访问
+    window.pc = pc;
 
     // 创建一个隐藏的 video 元素用于接收视频流
     videoElement = document.createElement('video');
@@ -195,7 +200,36 @@ function start() {
                 requestAnimationFrame(drawFrame);
             });
         } else {
-            document.getElementById('audio').srcObject = evt.streams[0];
+            // 处理音频流，应用延迟
+            const audioStream = evt.streams[0];
+            const audioElement = document.getElementById('audio');
+            
+            // 如果设置了音频延迟且大于0
+            if (audioDelay > 0) {
+                console.log(`应用音频延迟: ${audioDelay}秒`);
+                // 创建音频上下文
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 创建源节点
+                const source = audioContext.createMediaStreamSource(audioStream);
+                
+                // 创建延迟节点
+                const delayNode = audioContext.createDelay(50); // 最大延迟时间50秒
+                delayNode.delayTime.value = audioDelay; // 延迟时间已经是秒为单位
+                
+                // 创建目标节点
+                const destination = audioContext.createMediaStreamDestination();
+                
+                // 连接节点
+                source.connect(delayNode);
+                delayNode.connect(destination);
+                
+                // 将处理后的流设置为音频元素的源
+                audioElement.srcObject = destination.stream;
+            } else {
+                // 没有延迟，直接设置音频源
+                audioElement.srcObject = audioStream;
+            }
         }
     });
 
@@ -364,6 +398,119 @@ function applyAntiAliasing(imageData, width, height, strength) {
 // 示例：调整抗锯齿强度
 function adjustAntiAliasingStrength(newStrength) {
     antiAliasingStrength = newStrength;
+}
+
+function adjustAudioDelay(newDelay) {
+    // 更新延迟值（已转换为秒）
+    const oldDelay = audioDelay;
+    audioDelay = newDelay;
+    
+    console.log(`音频延迟已设置为: ${audioDelay}秒`);
+    
+    // 获取音频元素
+    const audioElement = document.getElementById('audio');
+    if (!audioElement || !audioElement.srcObject) {
+        console.log("没有活动的音频流，设置将应用于下一次启动");
+        return;
+    }
+    
+    try {
+        // 是否正在播放
+        const wasPlaying = !audioElement.paused;
+        
+        // 记录当前时间
+        const currentTime = audioElement.currentTime;
+        
+        // 暂停当前音频
+        audioElement.pause();
+        
+        // 获取当前流
+        const currentStream = audioElement.srcObject;
+        
+        // 如果当前正在使用未处理的原始流，需创建新的音频上下文
+        if (audioDelay > 0) {
+            // 创建新的音频上下文
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 检查是否有音轨可用
+            if (currentStream.getAudioTracks && currentStream.getAudioTracks().length > 0) {
+                // 创建新的MediaStream，只包含音频轨道
+                const newStream = new MediaStream(currentStream.getAudioTracks());
+                const source = audioContext.createMediaStreamSource(newStream);
+                
+                // 创建延迟节点
+                const delayNode = audioContext.createDelay(50); // 最大延迟50秒
+                delayNode.delayTime.value = audioDelay; // 已确保是秒为单位
+                
+                // 创建目标节点
+                const destination = audioContext.createMediaStreamDestination();
+                
+                // 连接节点
+                source.connect(delayNode);
+                delayNode.connect(destination);
+                
+                // 更新音频元素的源
+                audioElement.srcObject = destination.stream;
+            } else {
+                console.error("无法获取音频轨道，可能是一个已处理过的流");
+                
+                // 尝试重新从PC获取流
+                const pc = window.pc;
+                if (pc && pc.getReceivers) {
+                    const audioReceiver = pc.getReceivers().find(r => r.track && r.track.kind === 'audio');
+                    if (audioReceiver && audioReceiver.track) {
+                        console.log("从PC重新获取原始音频流");
+                        const stream = new MediaStream([audioReceiver.track]);
+                        
+                        // 创建新的音频上下文
+                        const newSource = audioContext.createMediaStreamSource(stream);
+                        
+                        // 创建延迟节点
+                        const newDelayNode = audioContext.createDelay(50);
+                        newDelayNode.delayTime.value = audioDelay;
+                        
+                        // 创建目标节点
+                        const newDestination = audioContext.createMediaStreamDestination();
+                        
+                        // 连接节点
+                        newSource.connect(newDelayNode);
+                        newDelayNode.connect(newDestination);
+                        
+                        // 更新音频元素的源
+                        audioElement.srcObject = newDestination.stream;
+                    }
+                }
+            }
+        } else {
+            // 无延迟时，尝试恢复原始流
+            try {
+                if (currentStream.getAudioTracks && currentStream.getAudioTracks().length > 0) {
+                    const originalStream = new MediaStream(currentStream.getAudioTracks());
+                    audioElement.srcObject = originalStream;
+                } else {
+                    console.log("尝试从PC获取原始音频流");
+                    // 尝试从PC获取原始流
+                    const pc = window.pc;
+                    if (pc && pc.getReceivers) {
+                        const audioReceiver = pc.getReceivers().find(r => r.track && r.track.kind === 'audio');
+                        if (audioReceiver && audioReceiver.track) {
+                            const stream = new MediaStream([audioReceiver.track]);
+                            audioElement.srcObject = stream;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("恢复原始流失败:", e);
+            }
+        }
+        
+        // 如果之前在播放，继续播放
+        if (wasPlaying) {
+            audioElement.play().catch(e => console.error('重新播放失败:', e));
+        }
+    } catch (error) {
+        console.error("应用新的延迟设置时出错:", error);
+    }
 }
 
 function stop() {

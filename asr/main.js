@@ -17,8 +17,266 @@ var rec = Recorder({
 	onProcess:recProcess
 });
 
- 
- 
+// 添加录音状态控制变量
+var isRecordingPaused = false;
+var isRec = false; // 定义isRec变量，初始为false
+
+// 全局函数，允许从外部暂停ASR录音
+window.pauseASRRecording = function() {
+    if (!isRecordingPaused && rec) {
+        console.log("ASR录音被外部暂停");
+        isRecordingPaused = true;
+        // 暂停录音处理但不关闭连接
+        rec.pause();
+        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 检测到声音播放，语音识别已暂停</span>";
+    }
+};
+
+// 全局函数，允许从外部恢复ASR录音
+window.resumeASRRecording = function() {
+    if (isRecordingPaused && rec) {
+        console.log("ASR录音被外部恢复");
+        isRecordingPaused = false;
+        // 恢复录音处理
+        rec.resume();
+        info_div.innerHTML = "<span style='color:#2ec4b6'>✓ 语音识别已恢复，可以说话了</span>";
+    }
+};
+
+// 添加消息监听器，处理来自父窗口的控制命令
+window.addEventListener('message', function(event) {
+    // 可以根据需要验证消息来源
+    // if (event.origin !== expectedOrigin) return;
+    
+    if (event.data && event.data.type === 'asr_control') {
+        console.log("收到控制命令:", event.data.action);
+        
+        if (event.data.action === 'pause') {
+            window.pauseASRRecording();
+        } else if (event.data.action === 'resume') {
+            window.resumeASRRecording();
+        }
+    }
+});
+
+// 添加音频音量监测变量
+var lastAudioVolumeTime = 0;
+var audioVolumeThreshold = 20; // 音量阈值，可根据实际情况调整
+var audioCheckInterval = null;
+var audioContext = null;
+var audioAnalyser = null;
+var audioDataArray = null;
+var isAudioMonitoring = false;
+
+// 修改音量阈值的函数
+function updateVolumeThreshold(newThreshold) {
+    audioVolumeThreshold = newThreshold;
+    console.log("音量阈值已更新为:", audioVolumeThreshold);
+    // 保存到localStorage以便页面刷新后保留设置
+    try {
+        localStorage.setItem('audioVolumeThreshold', audioVolumeThreshold);
+    } catch (e) {
+        console.error("保存音量阈值设置失败:", e);
+    }
+}
+
+// 从localStorage获取保存的阈值设置
+function loadVolumeThreshold() {
+    try {
+        const savedThreshold = localStorage.getItem('audioVolumeThreshold');
+        if (savedThreshold !== null) {
+            audioVolumeThreshold = parseInt(savedThreshold, 10);
+            console.log("已从存储加载音量阈值:", audioVolumeThreshold);
+            // 更新UI
+            const thresholdSlider = document.getElementById('threshold-slider');
+            const thresholdDisplay = document.getElementById('threshold-value-display');
+            if (thresholdSlider && thresholdDisplay) {
+                thresholdSlider.value = audioVolumeThreshold;
+                thresholdDisplay.textContent = audioVolumeThreshold;
+            }
+        }
+    } catch (e) {
+        console.error("加载音量阈值设置失败:", e);
+    }
+}
+
+// 初始化音量相关控件
+function initVolumeControls() {
+    // 加载保存的阈值设置
+    loadVolumeThreshold();
+    
+    // 为滑块添加事件监听器
+    const thresholdSlider = document.getElementById('threshold-slider');
+    if (thresholdSlider) {
+        thresholdSlider.addEventListener('input', function() {
+            const newValue = parseInt(this.value, 10);
+            updateVolumeThreshold(newValue);
+            const thresholdDisplay = document.getElementById('threshold-value-display');
+            if (thresholdDisplay) {
+                thresholdDisplay.textContent = newValue;
+            }
+        });
+    }
+    
+    // 为手动暂停/恢复按钮添加事件监听器
+    const pauseButton = document.getElementById('manual-pause-button');
+    if (pauseButton) {
+        pauseButton.addEventListener('click', function() {
+            if (isRecordingPaused) {
+                window.resumeASRRecording();
+                this.textContent = '暂停识别';
+                this.style.background = '#ff9f1c';
+            } else {
+                window.pauseASRRecording();
+                this.textContent = '恢复识别';
+                this.style.background = '#2ec4b6';
+            }
+        });
+    }
+}
+
+// 开始监测音频音量
+function startAudioMonitoring() {
+    if (isAudioMonitoring) return;
+    
+    try {
+        // 不再尝试直接访问parent.document
+        // 改为通过消息传递与父窗口通信
+        console.log("开始初始化音频监测 - 安全模式");
+        
+        // 设置消息监听器来接收父窗口的音量数据
+        window.addEventListener('message', function(event) {
+            // 确保消息来源安全（可以根据实际部署调整）
+            // if (event.origin !== "期望的父窗口来源") return;
+            
+            if (event.data && event.data.type === 'audio_volume') {
+                // 收到音量数据
+                const volumeData = event.data.volume;
+                handleExternalVolumeData(volumeData);
+            }
+        });
+        
+        // 通知父窗口我们已准备好接收音频数据
+        try {
+            window.parent.postMessage({ type: 'asr_ready' }, '*');
+            console.log("已向父窗口发送准备就绪消息");
+        } catch (e) {
+            console.error("向父窗口发送消息失败:", e);
+        }
+        
+        isAudioMonitoring = true;
+        console.log("音频音量监测已启动(安全模式)");
+    } catch (e) {
+        console.error("音频监测初始化失败:", e);
+        // 使用备用方法 - 仅使用本地控制
+        setupLocalControls();
+    }
+}
+
+// 处理从父窗口接收到的音量数据
+function handleExternalVolumeData(volumeData) {
+    if (!isAudioMonitoring) return;
+    
+    try {
+        const averageVolume = volumeData.average || 0;
+        
+        // 更新音量指示器
+        var volumeBar = document.getElementById('audio-volume-bar');
+        if (volumeBar) {
+            volumeBar.style.width = Math.min(100, averageVolume) + '%';
+            
+            // 根据音量调整颜色
+            if (averageVolume < 20) {
+                volumeBar.style.backgroundColor = '#2ec4b6'; // 绿色 - 低音量
+            } else if (averageVolume > audioVolumeThreshold) {
+                volumeBar.style.backgroundColor = '#f72585'; // 红色 - 高音量
+            } else {
+                volumeBar.style.backgroundColor = '#ff9f1c'; // 黄色 - 中等音量
+            }
+        }
+        
+        console.log("当前音频音量:", averageVolume);
+        
+        // 根据音量暂停/恢复录音
+        if (averageVolume > audioVolumeThreshold) {
+            // 音量超过阈值，暂停录音
+            if (!isRecordingPaused) {
+                window.pauseASRRecording();
+                console.log("音量过高，暂停语音识别");
+            }
+            lastAudioVolumeTime = Date.now();
+        } else if (Date.now() - lastAudioVolumeTime > 1000) { 
+            // 音量低于阈值且持续1秒，恢复录音
+            if (isRecordingPaused) {
+                window.resumeASRRecording();
+                console.log("音量已恢复正常，继续语音识别");
+            }
+        }
+    } catch (e) {
+        console.error("音量数据处理出错:", e);
+    }
+}
+
+// 设置本地控制（不依赖父窗口）
+function setupLocalControls() {
+    console.log("使用本地控制模式");
+    
+    // 更新暂停/恢复按钮状态
+    const pauseButton = document.getElementById('manual-pause-button');
+    if (pauseButton) {
+        pauseButton.style.display = 'block';
+    }
+}
+
+// 停止音频监测
+function stopAudioMonitoring() {
+    if (audioCheckInterval) {
+        clearInterval(audioCheckInterval);
+        audioCheckInterval = null;
+    }
+    
+    if (audioContext) {
+        try {
+            audioContext.close();
+        } catch (e) {
+            console.error("关闭音频上下文失败:", e);
+        }
+        audioContext = null;
+        audioAnalyser = null;
+        audioDataArray = null;
+    }
+    
+    isAudioMonitoring = false;
+    console.log("音频音量监测已停止");
+}
+
+// 创建音频音量指示器
+function createLocalVolumeIndicator() {
+    if (!document.getElementById('audio-volume-indicator')) {
+        console.log("创建音频音量指示器");
+        
+        var volumeIndicator = document.createElement('div');
+        volumeIndicator.id = 'audio-volume-indicator';
+        volumeIndicator.style.cssText = 'margin-top:5px;background:#f0f0f0;border-radius:4px;height:6px;width:100%;overflow:hidden;';
+        
+        var volumeBar = document.createElement('div');
+        volumeBar.id = 'audio-volume-bar';
+        volumeBar.style.cssText = 'background:#2ec4b6;height:100%;width:0%;transition:width 0.1s;';
+        
+        volumeIndicator.appendChild(volumeBar);
+        
+        var volumeLabel = document.createElement('div');
+        volumeLabel.style.cssText = 'font-size:12px;color:#666;margin-bottom:2px;';
+        volumeLabel.textContent = '扬声器音量';
+        
+        var container = document.createElement('div');
+        container.style.cssText = 'margin-bottom:20px;';
+        container.appendChild(volumeLabel);
+        container.appendChild(volumeIndicator);
+        
+        info_div.parentNode.insertBefore(container, info_div.nextSibling);
+    }
+}
  
 var sampleBuf=new Int16Array();
 // 定义按钮响应事件
@@ -345,6 +603,7 @@ function handleWithTimestamp(tmptext,tmptime)
 }
 
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
+
 async function is_speaking() {
 	const response = await fetch('http://192.168.3.100:8010/is_speaking', {
 		body: JSON.stringify({
@@ -356,29 +615,122 @@ async function is_speaking() {
 		method: 'POST'
 	  });
 	const data = await response.json();
-	console.log('is_speaking res:',data)
-	return data.data
+	console.log('is_speaking res:',data);
+	return data.data;
 }
 
 async function waitSpeakingEnd() {
-	rec.stop() //关闭录音
-	for(let i=0;i<10;i++) {  //等待数字人开始讲话，最长等待10s
-		bspeak = await is_speaking()
-		if(bspeak) {
-			break
-		}
-		await sleep(1000)
-	}
-
-	while(true) {  //等待数字人讲话结束
-		bspeak = await is_speaking()
-		if(!bspeak) {
-			break
-		}
-		await sleep(1000)
-	}
-	await sleep(2000)
-	rec.start() 
+    try {
+        console.log("暂停录音，等待数字人响应");
+        rec.pause(); // 暂停录音而不是停止
+        isRecordingPaused = true;
+        
+        let speakingDetected = false;
+        let maxWaitTime = 10; // 最大等待时间（秒）
+        
+        // 等待数字人开始讲话，最长等待10秒
+        for(let i = 0; i < maxWaitTime; i++) {
+            try {
+                const response = await fetch('http://192.168.3.100:8010/is_speaking', {
+                    body: JSON.stringify({
+                        sessionid: 0,
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                });
+                
+                if(!response.ok) {
+                    console.error("检查说话状态失败:", response.status);
+                    break;
+                }
+                
+                const data = await response.json();
+                console.log('is_speaking res:', data);
+                
+                if(data.data === true) {
+                    speakingDetected = true;
+                    info_div.innerHTML = '<span style="color:#4361ee">🔄 数字人正在回应...</span>';
+                    break;
+                }
+                
+                await sleep(1000);
+            } catch(e) {
+                console.error("检查说话状态出错:", e);
+                break;
+            }
+        }
+        
+        if (!speakingDetected) {
+            console.log("未检测到数字人说话，恢复录音");
+            rec.resume();
+            isRecordingPaused = false;
+            info_div.innerHTML = '<span style="color:#ff9f1c">⚠️ 未检测到数字人响应，已恢复录音</span>';
+            return;
+        }
+        
+        // 等待数字人讲话结束，设置超时保护
+        let waitEndTimeout = setTimeout(() => {
+            console.log("等待数字人结束说话超时");
+            if(isRecordingPaused) {
+                rec.resume();
+                isRecordingPaused = false;
+                info_div.innerHTML = '<span style="color:#2ec4b6">✓ 录音已恢复，请说话...</span>';
+            }
+        }, 30000); // 30秒超时保护
+        
+        while(true) {
+            try {
+                const response = await fetch('http://192.168.3.100:8010/is_speaking', {
+                    body: JSON.stringify({
+                        sessionid: 0,
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                });
+                
+                if(!response.ok) {
+                    console.error("检查说话结束状态失败:", response.status);
+                    break;
+                }
+                
+                const data = await response.json();
+                
+                if(data.data === false) {
+                    console.log("数字人已停止说话");
+                    break;
+                }
+                
+                await sleep(1000);
+            } catch(e) {
+                console.error("检查说话结束状态出错:", e);
+                break;
+            }
+        }
+        
+        clearTimeout(waitEndTimeout);
+        
+        // 等待一小段时间再恢复录音
+        await sleep(1000);
+        
+        // 恢复录音
+        if(isRecordingPaused) {
+            rec.resume();
+            isRecordingPaused = false;
+            info_div.innerHTML = '<span style="color:#2ec4b6">✓ 数字人回应完毕，录音已恢复，请说话...</span>';
+        }
+    } catch(e) {
+        console.error("waitSpeakingEnd 函数出错:", e);
+        // 确保出错时也能恢复录音
+        if(isRecordingPaused) {
+            rec.resume();
+            isRecordingPaused = false;
+            info_div.innerHTML = '<span style="color:#ff9f1c">⚠️ 出现错误，录音已恢复</span>';
+        }
+    }
 }
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 function getJsonMessage( jsonMsg ) {
@@ -388,22 +740,59 @@ function getJsonMessage( jsonMsg ) {
 	var asrmodel=JSON.parse(jsonMsg.data)['mode'];
 	var is_final=JSON.parse(jsonMsg.data)['is_final'];
 	var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
+    
+    // 检查识别文本的长度，防止显示区域过满
+    var maxTextLength = 500; // 最大字符数
+    if (rec_text.length > maxTextLength) {
+        // 文本过长时清空之前的内容
+        rec_text = "";
+        offline_text = "";
+        console.log("识别文本已超过最大长度，已自动清空");
+    }
+    
 	if(asrmodel=="2pass-offline" || asrmodel=="offline")
 	{
 		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
 		rec_text=offline_text;
+        
+        // 获取当前时间
+        var now = new Date();
+        var timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                         now.getMinutes().toString().padStart(2, '0') + ':' + 
+                         now.getSeconds().toString().padStart(2, '0');
+        
 		fetch('http://192.168.3.100:8010/human', {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',
+                interrupt: false,
+                sessionid: 0, // 默认会话ID，如果需要可以从页面获取
             }),
             headers: {
                 'Content-Type': 'application/json'
             },
             method: 'POST'
-      	});
+      	})
+        .then(response => {
+            if (!response.ok) {
+                console.error('后端响应错误:', response.status);
+                info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+            } else {
+                console.log('识别文本发送成功');
+                info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
+            }
+            return response.json().catch(e => null);
+        })
+        .then(data => {
+            if (data) console.log('后端返回数据:', data);
+        })
+        .catch(error => {
+            console.error('请求失败:', error);
+            info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+        });
 
-		waitSpeakingEnd();
+		// 不再等待数字人响应
+		// waitSpeakingEnd();
 	}
 	else
 	{
@@ -431,185 +820,137 @@ function getJsonMessage( jsonMsg ) {
 }
 
 // 连接状态响应
-function getConnState( connState ) {
-	if ( connState === 0 ) { //on open
- 
- 
-		info_div.innerHTML='连接成功!请点击开始';
-		if (isfilemode==true){
-			info_div.innerHTML='请耐心等待,大文件等待时间更长';
+function getConnState(connState) {
+    if (connState === 0) { //on open
+        info_div.innerHTML='<span style="color:#2ec4b6">✓ 连接成功！语音识别已启动，系统会自动暂停/恢复识别</span>';
+        
+        if (isfilemode == true) {
+            info_div.innerHTML='<span style="color:#4361ee">🔄 请耐心等待，大文件识别需要较长时间...</span>';
 			start_file_send();
-		}
-		else
-		{
+        } else {
 			btnStart.disabled = false;
 			btnStop.disabled = true;
-			btnConnect.disabled=true;
-		}
-	} else if ( connState === 1 ) {
+            btnConnect.disabled = true;
+            
+            // 创建本地音量指示器与控制器
+            createLocalVolumeIndicator();
+            initVolumeControls();
+            
+            // 启动音频监测
+            setTimeout(function() {
+                startAudioMonitoring();
+            }, 1000);
+        }
+    } else if (connState === 1) {
 		//stop();
-	} else if ( connState === 2 ) {
+    } else if (connState === 2) {
 		stop();
-		console.log( 'connecttion error' );
+        console.log('connecttion error');
 		 
-		alert("连接地址"+document.getElementById('wssip').value+"失败,请检查asr地址和端口。或试试界面上手动授权，再连接。");
+        alert("连接地址" + document.getElementById('wssip').value + "失败，请检查asr地址和端口。或试试界面上手动授权，再连接。");
 		btnStart.disabled = true;
 		btnStop.disabled = true;
-		btnConnect.disabled=false;
- 
- 
-		info_div.innerHTML='请点击连接';
-	}
+        btnConnect.disabled = false;
+        
+        info_div.innerHTML='<span style="color:#f72585">❌ 连接失败，请点击连接按钮重试</span>';
+        stopAudioMonitoring(); // 停止音频监测
+    }
 }
 
-function record()
-{
- 
-		 rec.open( function(){
-		 rec.start();
-		 console.log("开始");
-			btnStart.disabled = true;
-			btnStop.disabled = false;
-			btnConnect.disabled=true;
-		 });
- 
-}
-
- 
-
-// 识别启动、停止、清空操作
-function start() {
-	
-	// 清除显示
-	clear();
-	//控件状态更新
- 	console.log("isfilemode"+isfilemode);
+function record() {
+    // 添加音量显示指示器到页面
+    if (!document.getElementById('volume-indicator')) {
+        var volumeIndicator = document.createElement('div');
+        volumeIndicator.id = 'volume-indicator';
+        volumeIndicator.style.cssText = 'margin-top:10px;background:#f0f0f0;border-radius:4px;height:10px;width:100%;overflow:hidden;';
+        
+        var volumeBar = document.createElement('div');
+        volumeBar.id = 'volume-bar';
+        volumeBar.style.cssText = 'background:#2ec4b6;height:100%;width:0%;transition:width 0.1s;';
+        
+        volumeIndicator.appendChild(volumeBar);
+        
+        // 添加麦克风音量标签
+        var volumeLabel = document.createElement('div');
+        volumeLabel.style.cssText = 'font-size:12px;color:#666;margin-bottom:2px;';
+        volumeLabel.textContent = '麦克风音量';
+        
+        var container = document.createElement('div');
+        container.style.cssText = 'margin-bottom:20px;';
+        container.appendChild(volumeLabel);
+        container.appendChild(volumeIndicator);
+        
+        info_div.parentNode.insertBefore(container, info_div.nextSibling);
+    }
     
-	//启动连接
-	var ret=wsconnecter.wsStart();
-	// 1 is ok, 0 is error
-	if(ret==1){
-		info_div.innerHTML="正在连接asr服务器，请等待...";
-		isRec = true;
+    // 打开麦克风并启动录音 - 原始实现
+    rec.open(function() {
+        rec.start();
+        console.log("开始录音");
 		btnStart.disabled = true;
-		btnStop.disabled = true;
-		btnConnect.disabled=true;
- 
-        return 1;
-	}
-	else
-	{
-		info_div.innerHTML="请点击开始";
-		btnStart.disabled = true;
-		btnStop.disabled = true;
-		btnConnect.disabled=false;
- 
-		return 0;
-	}
+        btnStop.disabled = false;
+        btnConnect.disabled = true;
+        info_div.innerHTML = '<span style="color:#2ec4b6">✓ 录音已开始，请说话...</span>';
+    });
 }
 
- 
+// 修改stop函数，停止音频监测
 function stop() {
-		var chunk_size = new Array( 5, 10, 5 );
+    var chunk_size = new Array(5, 10, 5);
 		var request = {
 			"chunk_size": chunk_size,
-			"wav_name":  "h5",
-			"is_speaking":  false,
-			"chunk_interval":10,
-			"mode":getAsrMode(),
+        "wav_name": "h5",
+        "is_speaking": false,
+        "chunk_interval": 10,
+        "mode": getAsrMode(),
 		};
 		console.log(request);
-		if(sampleBuf.length>0){
+    
+    if(sampleBuf.length > 0) {
 		wsconnecter.wsSend(sampleBuf);
-		console.log("sampleBuf.length"+sampleBuf.length);
-		sampleBuf=new Int16Array();
+        console.log("发送数据长度: " + sampleBuf.length);
+        sampleBuf = new Int16Array();
 		}
-	   wsconnecter.wsSend( JSON.stringify(request) );
  
-	  
-	
-	 
-
+    wsconnecter.wsSend(JSON.stringify(request));
  
 	// 控件状态更新
-	
 	isRec = false;
-    info_div.innerHTML="发送完数据,请等候,正在识别...";
+    info_div.innerHTML='<span style="color:#4361ee">🔄 正在处理识别结果，请稍候...</span>';
 
-   if(isfilemode==false){
+    // 停止音频监测
+    stopAudioMonitoring();
+
+    if(isfilemode == false) {
 	    btnStop.disabled = true;
 		btnStart.disabled = true;
-		btnConnect.disabled=true;
+        btnConnect.disabled = true;
+        
 		//wait 3s for asr result
-	  setTimeout(function(){
-		console.log("call stop ws!");
+        setTimeout(function() {
+            console.log("关闭WebSocket连接");
 		wsconnecter.wsStop();
-		btnConnect.disabled=false;
-		info_div.innerHTML="请点击连接";}, 3000 );
- 
- 
-	   
-	rec.stop(function(blob,duration){
-  
-		console.log(blob);
-		var audioBlob = Recorder.pcm2wav(data = {sampleRate:16000, bitRate:16, blob:blob},
-		function(theblob,duration){
-				console.log(theblob);
+            btnConnect.disabled = false;
+            info_div.innerHTML='<span style="color:#4361ee">ℹ️ 识别已停止，点击"连接"重新开始</span>';
+        }, 3000);
+        
+        rec.stop(function(blob, duration) {
+            console.log("录音数据:", blob);
+            var audioBlob = Recorder.pcm2wav(
+                data = {sampleRate: 16000, bitRate: 16, blob: blob},
+                function(theblob, duration) {
+                    console.log("WAV音频:", theblob);
 		var audio_record = document.getElementById('audio_record');
-		audio_record.src =  (window.URL||webkitURL).createObjectURL(theblob); 
-        audio_record.controls=true;
-		//audio_record.play(); 
-         	
-
-	}   ,function(msg){
-		 console.log(msg);
-	}
-		);
- 
-
- 
-	},function(errMsg){
-		console.log("errMsg: " + errMsg);
-	});
-   }
-    // 停止连接
- 
-    
-
-}
-
-function clear() {
- 
-    var varArea=document.getElementById('varArea');
- 
-	varArea.value="";
-    rec_text="";
-	offline_text="";
- 
-}
-
- 
-function recProcess( buffer, powerLevel, bufferDuration, bufferSampleRate,newBufferIdx,asyncEnd ) {
-	if ( isRec === true ) {
-		var data_48k = buffer[buffer.length-1];  
- 
-		var  array_48k = new Array(data_48k);
-		var data_16k=Recorder.SampleData(array_48k,bufferSampleRate,16000).data;
- 
-		sampleBuf = Int16Array.from([...sampleBuf, ...data_16k]);
-		var chunk_size=960; // for asr chunk_size [5, 10, 5]
-		info_div.innerHTML=""+bufferDuration/1000+"s";
-		while(sampleBuf.length>=chunk_size){
-		    sendBuf=sampleBuf.slice(0,chunk_size);
-			sampleBuf=sampleBuf.slice(chunk_size,sampleBuf.length);
-			wsconnecter.wsSend(sendBuf);
-			
-			
-		 
-		}
-		
- 
-		
+                    audio_record.src = (window.URL || webkitURL).createObjectURL(theblob);
+                    audio_record.controls = true;
+                },
+                function(msg) {
+                    console.log("WAV转换错误:", msg);
+                }
+            );
+        }, function(errMsg) {
+            console.log("录音停止错误: " + errMsg);
+        });
 	}
 }
 
@@ -622,3 +963,125 @@ function getUseITN() {
 	}
 	return false;
 }
+
+// 识别启动、停止、清空操作
+function start() {
+    // 清除显示
+    clear();
+    //控件状态更新
+    console.log("isfilemode: " + isfilemode);
+    
+    //启动连接
+    var ret = wsconnecter.wsStart();
+    // 1 is ok, 0 is error
+    if(ret == 1) {
+        info_div.innerHTML='<span style="color:#4361ee">🔄 正在连接语音识别服务器，请稍候...</span>';
+        isRec = true;
+        btnStart.disabled = true;
+        btnStop.disabled = true;
+        btnConnect.disabled = true;
+        
+        return 1;
+    } else {
+        info_div.innerHTML='<span style="color:#f72585">❌ 连接失败，请重试</span>';
+        btnStart.disabled = true;
+        btnStop.disabled = true;
+        btnConnect.disabled = false;
+        
+        return 0;
+    }
+}
+
+function clear() {
+    var varArea = document.getElementById('varArea');
+    varArea.value = "";
+    rec_text = "";
+    offline_text = "";
+}
+
+// 测试麦克风访问
+function testMicrophoneAccess(callback) {
+    try {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                console.log("麦克风访问成功");
+                
+                // 关闭测试流
+                stream.getTracks().forEach(track => track.stop());
+                
+                callback(true);
+            })
+            .catch(function(err) {
+                console.error("麦克风访问失败:", err);
+                callback(false);
+            });
+    } catch (e) {
+        console.error("麦克风访问测试异常:", e);
+        callback(false);
+    }
+}
+
+// 修改recProcess函数，恢复原始逻辑
+function recProcess(buffer, powerLevel, bufferDuration, bufferSampleRate, newBufferIdx, asyncEnd) {
+    // 如果录音已暂停，不处理
+    if (isRecordingPaused) {
+        return;
+    }
+    
+    // 添加音量级别显示
+    console.log("当前音量:", powerLevel, "缓冲时长:", bufferDuration);
+    
+    // 更新音量指示器（如果存在）
+    var volumeBar = document.getElementById('volume-bar');
+    if (volumeBar) {
+        volumeBar.style.width = Math.min(100, powerLevel) + '%';
+        
+        // 根据音量调整颜色
+        if (powerLevel < 20) {
+            volumeBar.style.backgroundColor = '#ff9f1c'; // 黄色警告
+        } else if (powerLevel > 80) {
+            volumeBar.style.backgroundColor = '#f72585'; // 红色过载
+        } else {
+            volumeBar.style.backgroundColor = '#2ec4b6'; // 正常绿色
+        }
+    }
+    
+    // 恢复原始处理逻辑
+    if (isRec === true) {
+		var data_48k = buffer[buffer.length-1];  
+        var array_48k = new Array(data_48k);
+        var data_16k = Recorder.SampleData(array_48k, bufferSampleRate, 16000).data;
+ 
+		sampleBuf = Int16Array.from([...sampleBuf, ...data_16k]);
+        var chunk_size = 960; // for asr chunk_size [5, 10, 5]
+        info_div.innerHTML = "" + bufferDuration/1000 + "s";
+        while(sampleBuf.length >= chunk_size) {
+            sendBuf = sampleBuf.slice(0, chunk_size);
+            sampleBuf = sampleBuf.slice(chunk_size, sampleBuf.length);
+			wsconnecter.wsSend(sendBuf);
+            totalsend += sendBuf.length;
+        }
+    }
+}
+
+// 页面初始化
+window.onload = function() {
+    // 加载保存的设置
+    loadSettings();
+    
+    // 初始化音量控制
+    initVolumeControls();
+    
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            handleSpaceKey(e);
+        }
+    });
+    
+    $('#btnConnect').on('click', startASR);
+    $('#selectModels').on('change', setDefaultValuesForModel);
+    $('#rtAddHotWord').on('click', addHotWord);
+    $("#rtHotWordDelete").on('click', deleteHotWord);
+    
+    // ... existing code ...
+};

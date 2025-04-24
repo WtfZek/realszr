@@ -30,6 +30,32 @@
             color: var(--text-primary);
         }
 
+        /* ASR状态指示器样式 */
+        #asr-status {
+            position: fixed;
+            bottom: 20px;
+            right: 85px;
+            background-color: rgba(255, 255, 255, 0.85);
+            color: var(--success-color);
+            padding: 8px 15px;
+            border-radius: 50px;
+            font-size: 14px;
+            box-shadow: var(--box-shadow);
+            z-index: 1002;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        #asr-status.paused {
+            color: var(--warning-color);
+        }
+        
+        #asr-status:hover {
+            background-color: rgba(255, 255, 255, 0.95);
+            transform: translateY(-2px);
+        }
+
         .main-container {
             position: relative;
             width: 100vw;
@@ -559,6 +585,31 @@
             /*backdrop-filter: blur(2px);*/
             z-index: 1000;
             transition: var(--transition);
+        }
+
+        .status-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.85);
+            color: var(--success-color);
+            padding: 8px 15px;
+            border-radius: 50px;
+            font-size: 14px;
+            box-shadow: var(--box-shadow);
+            z-index: 1002;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .status-indicator.paused {
+            color: var(--warning-color);
+        }
+        
+        .status-indicator:hover {
+            background-color: rgba(255, 255, 255, 0.95);
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -2265,6 +2316,335 @@
                 // 更新X轴位置保持不变
                 const xPos = parseInt(bgXOffsetValue.value);
                 mainContainer.style.backgroundPosition = `calc(50% + ${xPos}px) center`;
+            });
+
+            // 音频播放与语音识别自动切换功能
+            let asrIframe = document.getElementById('asr-iframe');
+            let audioElement = document.getElementById('audio');
+            let isAudioMonitorRunning = false;
+            let volumeThreshold = 0.05; // 音量阈值，可以根据需要调整
+            let audioContext;
+            let mediaStreamSource;
+            let analyser;
+            let asrEnabled = true;
+            let isWebRTCStreamAvailable = false;
+            
+            // 确保页面已加载ASR iframe
+            function ensureAsrIframeReady() {
+                if (!asrIframe || !asrIframe.contentWindow) {
+                    asrIframe = document.getElementById('asr-iframe');
+                    if (!asrIframe) {
+                        console.error('找不到ASR iframe元素');
+                        return false;
+                    }
+                }
+                
+                // 检查iframe是否已加载
+                try {
+                    if (typeof asrIframe.contentWindow.pauseASRRecording !== 'function') {
+                        console.log('ASR iframe还未完全加载，稍后重试...');
+                        return false;
+                    }
+                } catch (e) {
+                    console.error('无法访问ASR iframe内容:', e);
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            // 尝试从WebRTC获取音频流
+            function setupWebRTCAudioMonitoring() {
+                if (window.pc) {
+                    try {
+                        // 等待PC准备就绪并有接收器
+                        let checkReceivers = setInterval(() => {
+                            if (window.pc.getReceivers && window.pc.getReceivers().length > 0) {
+                                clearInterval(checkReceivers);
+                                
+                                // 寻找音频轨道
+                                const audioReceiver = window.pc.getReceivers().find(r => r.track && r.track.kind === 'audio');
+                                if (audioReceiver && audioReceiver.track) {
+                                    console.log("找到WebRTC音频轨道，设置音频监控");
+                                    const audioStream = new MediaStream([audioReceiver.track]);
+                                    
+                                    // 创建音频分析器
+                                    try {
+                                        setupAudioAnalyser(audioStream);
+                                        isWebRTCStreamAvailable = true;
+                                    } catch (e) {
+                                        console.error("WebRTC音频分析器设置失败:", e);
+                                        fallbackToElementSrcObject();
+                                    }
+                                } else {
+                                    console.log("未找到WebRTC音频轨道，使用后备方案");
+                                    fallbackToElementSrcObject();
+                                }
+                            }
+                        }, 1000);
+                        
+                        // 5秒后如果还未成功，使用备用方案
+                        setTimeout(() => {
+                            if (!isWebRTCStreamAvailable) {
+                                clearInterval(checkReceivers);
+                                console.log("WebRTC流获取超时，使用后备方案");
+                                fallbackToElementSrcObject();
+                            }
+                        }, 5000);
+                        
+                    } catch (e) {
+                        console.error("WebRTC流获取失败:", e);
+                        fallbackToElementSrcObject();
+                    }
+                } else {
+                    console.log("WebRTC PC不可用，使用后备方案");
+                    fallbackToElementSrcObject();
+                }
+            }
+            
+            // 备用方案：使用音频元素的srcObject
+            function fallbackToElementSrcObject() {
+                if (audioElement && audioElement.srcObject) {
+                    console.log("使用audio元素的srcObject");
+                    try {
+                        setupAudioAnalyser(audioElement.srcObject);
+                    } catch (e) {
+                        console.error("音频分析器设置失败，切换到播放状态监听:", e);
+                        setupPlaybackEvents();
+                    }
+                } else if (audioElement) {
+                    console.log("音频元素没有srcObject，使用播放状态事件监听");
+                    setupPlaybackEvents();
+                } else {
+                    console.log("找不到音频元素，无法进行音量监控");
+                }
+            }
+            
+            // 设置音频分析器
+            function setupAudioAnalyser(stream) {
+                try {
+                    // 确保先关闭之前的audioContext
+                    if (audioContext) {
+                        try {
+                            audioContext.close();
+                        } catch (e) {
+                            console.error("关闭之前的audioContext失败:", e);
+                        }
+                    }
+                    
+                    // 创建新的audioContext
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    
+                    mediaStreamSource = audioContext.createMediaStreamSource(stream);
+                    mediaStreamSource.connect(analyser);
+                    
+                    isAudioMonitorRunning = true;
+                    monitorAudioVolume();
+                    console.log('音频分析器已设置');
+                } catch (e) {
+                    console.error("设置音频分析器失败:", e);
+                    throw e;
+                }
+            }
+            
+            // 初始化音频监控
+            function initAudioMonitoring() {
+                if (isAudioMonitorRunning) {
+                    console.log("音频监控已经在运行中");
+                    return;
+                }
+                
+                console.log("正在初始化音频监控...");
+                setupWebRTCAudioMonitoring();
+            }
+            
+            // 监控音频音量
+            function monitorAudioVolume() {
+                if (!isAudioMonitorRunning || !analyser) {
+                    console.log("音频监控已停止");
+                    return;
+                }
+                
+                try {
+                    // 创建数据数组接收分析数据
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    // 获取音量数据
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    // 计算平均音量
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const average = sum / dataArray.length / 255; // 归一化到0-1范围
+                    
+                    // 使用平滑化防止频繁切换
+                    const smoothFactor = 0.3; // 平滑因子
+                    if (!window.smoothedVolume) window.smoothedVolume = average;
+                    window.smoothedVolume = window.smoothedVolume * (1 - smoothFactor) + average * smoothFactor;
+                    
+                    // 将数据发送到ASR iframe (转换为0-100范围)
+                    sendVolumeDataToASR(window.smoothedVolume * 100);
+                    
+                    // 根据平滑后的音量控制语音识别 
+                    if (window.smoothedVolume > volumeThreshold) {
+                        if (asrEnabled) {
+                            pauseASR();
+                            console.log('音量超过阈值，暂停语音识别:', window.smoothedVolume.toFixed(3));
+                        }
+                    } else {
+                        if (!asrEnabled && window.smoothedVolume < volumeThreshold * 0.8) { // 添加一些滞后，避免在阈值边缘频繁切换
+                            resumeASR();
+                            console.log('音量低于阈值，恢复语音识别:', window.smoothedVolume.toFixed(3));
+                        }
+                    }
+                    
+                    // 继续监控
+                    requestAnimationFrame(monitorAudioVolume);
+                } catch (e) {
+                    console.error("音量监控出错:", e);
+                    isAudioMonitorRunning = false;
+                    
+                    // 出错后切换到播放状态监听
+                    setupPlaybackEvents();
+                }
+            }
+            
+            // 备用方案：基于播放状态的事件监听
+            function setupPlaybackEvents() {
+                console.log("使用播放状态监听方案");
+                
+                // 移除可能已存在的事件监听器
+                audioElement.removeEventListener('play', onAudioPlay);
+                audioElement.removeEventListener('pause', onAudioPause);
+                audioElement.removeEventListener('ended', onAudioEnd);
+                
+                // 添加新的事件监听器
+                audioElement.addEventListener('play', onAudioPlay);
+                audioElement.addEventListener('pause', onAudioPause);
+                audioElement.addEventListener('ended', onAudioEnd);
+                
+                console.log('音频播放事件监听器已初始化');
+            }
+            
+            function onAudioPlay() {
+                if (asrEnabled) {
+                    pauseASR();
+                    console.log('音频开始播放，暂停语音识别');
+                }
+            }
+            
+            function onAudioPause() {
+                if (!asrEnabled) {
+                    resumeASR();
+                    console.log('音频暂停播放，恢复语音识别');
+                }
+            }
+            
+            function onAudioEnd() {
+                if (!asrEnabled) {
+                    resumeASR();
+                    console.log('音频播放结束，恢复语音识别');
+                }
+            }
+            
+            // 暂停语音识别
+            function pauseASR() {
+                try {
+                    const asrIframe = document.getElementById('asr-iframe');
+                    if (asrIframe && asrIframe.contentWindow) {
+                        // 使用postMessage发送暂停命令，而不是直接调用iframe方法
+                        asrIframe.contentWindow.postMessage({
+                            type: 'asr_control',
+                            action: 'pause'
+                        }, '*');
+                        asrEnabled = false;
+                        console.log('已发送暂停语音识别命令');
+                    } else {
+                        console.error('找不到ASR iframe，无法暂停语音识别');
+                    }
+                } catch (e) {
+                    console.error('暂停语音识别失败:', e);
+                }
+            }
+            
+            // 恢复语音识别
+            function resumeASR() {
+                try {
+                    const asrIframe = document.getElementById('asr-iframe');
+                    if (asrIframe && asrIframe.contentWindow) {
+                        // 使用postMessage发送恢复命令，而不是直接调用iframe方法
+                        asrIframe.contentWindow.postMessage({
+                            type: 'asr_control',
+                            action: 'resume'
+                        }, '*');
+                        asrEnabled = true;
+                        console.log('已发送恢复语音识别命令');
+                    } else {
+                        console.error('找不到ASR iframe，无法恢复语音识别');
+                    }
+                } catch (e) {
+                    console.error('恢复语音识别失败:', e);
+                }
+            }
+            
+            // 监听音频流创建，此处监听start按钮点击
+            document.getElementById('start').addEventListener('click', function() {
+                console.log("监听到start按钮点击，准备初始化音频监控");
+                // 延迟初始化，确保WebRTC连接建立
+                setTimeout(function() {
+                    initAudioMonitoring();
+                }, 3000);
+            });
+            
+            // 通过postMessage向ASR iframe发送音量数据
+            function sendVolumeDataToASR(volume) {
+                try {
+                    const asrIframe = document.getElementById('asr-iframe');
+                    if (asrIframe && asrIframe.contentWindow) {
+                        asrIframe.contentWindow.postMessage({
+                            type: 'audio_volume',
+                            volume: {
+                                average: volume,
+                                time: Date.now()
+                            }
+                        }, '*');
+                    }
+                } catch (e) {
+                    console.error("向ASR iframe发送音量数据失败:", e);
+                }
+            }
+            
+            // 在页面加载时尝试初始化
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log("页面已加载，准备初始化");
+                
+                // 如果已经有活动连接，尝试初始化音频监控
+                setTimeout(function() {
+                    if (document.getElementById('stop').style.display === 'inline-block') {
+                        console.log("检测到活动连接，初始化音频监控");
+                        initAudioMonitoring();
+                    } else {
+                        console.log("未检测到活动连接，等待start按钮点击");
+                    }
+                }, 2000);
+            });
+            
+            // 监听来自ASR iframe的消息
+            window.addEventListener('message', function(event) {
+                // 可以根据需要检查来源
+                // if (event.origin !== window.location.origin) return;
+                
+                if (event.data && event.data.type === 'asr_ready') {
+                    console.log("收到ASR iframe准备就绪消息");
+                    // 启动音频监控并发送数据
+                    if (!isAudioMonitorRunning) {
+                        initAudioMonitoring();
+                    }
+                }
             });
         });
     </script>

@@ -278,8 +278,8 @@
 <div class="asr-container">
     <!-- 隐藏的配置项 -->
     <input id="wssip" type="text" onchange="addresschange()" value="wss://www.funasr.com:10096/" class="hidden">
-    <a id="wsslink" href="#" class="hidden" onclick="window.open('https://127.0.0.1:10095/', '_blank')">
-        <div id="info_wslink">点击此处手动授权 wss://127.0.0.1:10095/</div>
+    <a id="wsslink" href="#" class="hidden" onclick="window.open('https://192.168.3.100:10095/', '_blank')">
+        <div id="info_wslink">点击此处手动授权 wss://192.168.3.100:10095/</div>
     </a>
 
     <div class="recoder_mode_div hidden">
@@ -313,6 +313,31 @@
 
     <!-- 音频播放器 -->
     <audio id="audio_record" type="audio/wav" controls></audio>
+
+    <!-- 音量相关控件 -->
+    <div class="volume-controls" style="margin-top: 15px;">
+        <!-- 播放音量指示器 -->
+        <!-- <div style="margin-bottom: 10px;">
+            <div style="font-size:12px;color:#666;margin-bottom:5px;">播放音量</div>
+            <div id="audio-volume-indicator" style="background:#f0f0f0;border-radius:4px;height:6px;width:100%;overflow:hidden;">
+                <div id="audio-volume-bar" style="background:#2ec4b6;height:100%;width:0%;transition:width 0.1s;"></div>
+            </div>
+        </div> -->
+        
+        <!-- 音量阈值控制 -->
+        <div id="volume-threshold-control" style="margin-top: 15px;">
+            <div style="font-size:12px;color:#666;margin-bottom:5px;display:flex;justify-content:space-between;">
+                <span>音量阈值 (音量大于该值时暂停录音)</span>
+                <span id="threshold-value-display">20</span>
+            </div>
+            <input type="range" id="threshold-slider" min="5" max="100" step="1" value="20" style="width:100%;">
+        </div>
+        
+        <!-- 手动暂停/恢复按钮 -->
+        <!-- <div style="margin-top:15px;text-align:center;">
+            <button id="manual-pause-button" style="padding:8px 16px;background:#ff9f1c;color:white;border:none;border-radius:4px;cursor:pointer;">暂停识别</button>
+        </div> -->
+    </div>
 
     <!-- 高级设置区域 -->
     <div class="divider"></div>

@@ -108,11 +108,25 @@ function WebSocketConnectMethod( config ) { //定义socket连接方法类
 	}
 	
 	function onError( e ) {
- 
-		info_div.innerHTML="连接"+e;
-		console.log(e);
+		console.error("WebSocket连接错误:", e);
+		info_div.innerHTML = '<span style="color:#f72585">❌ 连接错误: ' + (e.message || '未知错误') + '</span>';
 		stateHandle(2);
 		
+		// 在移动设备上添加重试消息
+		if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+			setTimeout(function() {
+				info_div.innerHTML = '<span style="color:#ff9f1c">点击"连接"按钮重新尝试连接</span>';
+				
+				// 重置按钮状态
+				var btnConnect = document.getElementById('btnConnect');
+				var btnStart = document.getElementById('btnStart');
+				var btnStop = document.getElementById('btnStop');
+				
+				if(btnConnect) btnConnect.disabled = false;
+				if(btnStart) btnStart.disabled = true;
+				if(btnStop) btnStop.disabled = true;
+			}, 2000);
+		}
 	}
     
  

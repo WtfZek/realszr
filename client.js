@@ -583,25 +583,73 @@ function adjustGreenScreenTolerance(newTolerance) {
 // 获取元素
 const chatModal = document.getElementById('chat-modal');
 const showChatModalButton = document.getElementById('show-chat-modal');
-const closeChatModalButton = document.getElementById('close-chat-modal');
+// const closeChatModalButton = document.getElementById('close-chat-modal');
 const chatContent = document.getElementById('chat-content');
 
-// 显示对话记录弹窗
-showChatModalButton.addEventListener('click', function() {
-    chatModal.style.display = 'block';
-});
 
 // 关闭对话记录弹窗
-closeChatModalButton.addEventListener('click', function() {
-    chatModal.style.display = 'none';
-});
+// closeChatModalButton.addEventListener('click', function() {
+//     chatModal.style.display = 'none';
+//     isChatModalOpen = false;
+// });
 
 // 添加对话内容到弹窗
-function addChatMessage(message) {
+// 添加对话内容到弹窗
+function addChatMessage(message, isSender) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
-    chatItem.textContent = message;
+    chatItem.classList.add(isSender ? 'sender' : 'receiver');
+    // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
+    chatItem.style.display = 'flex';
+    chatItem.style.alignItems = 'start'; // 垂直顶部对齐
+    chatItem.style.marginBottom = '10px'; // 为每个聊天项添加底部间距
+
+    // 创建头像图片元素
+    const avatar = document.createElement('img');
+    avatar.src = './static/text.png';
+    avatar.style.width = '24px';
+    avatar.style.height = '24px';
+    avatar.style.borderRadius = '50%';
+    avatar.style.marginRight = '10px';
+
+    // 创建一个容器来包裹头像和消息
+    const messageContainer = document.createElement('div');
+    messageContainer.style.display = 'flex';
+    messageContainer.style.alignItems = 'end';
+    messageContainer.style.fontSize = '12px';
+    messageContainer.style.fontFamily = '宋体';
+    messageContainer.style.border = '1px solid #dcdcdc';
+    messageContainer.style.borderRadius = '8px';
+    messageContainer.style.backgroundColor = '#ffffff';
+    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+    messageContainer.style.padding = '10px';
+    messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
+
+    // 将头像和消息添加到容器中
+    if (isSender) {
+        messageContainer.appendChild(document.createTextNode(message));
+        chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
+        avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
+        avatar.style.marginRight = 0; // 移除发送者头像左侧间距
+    } else {
+        messageContainer.appendChild(document.createTextNode(message));
+        chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
+    }
+
+    // 将容器添加到聊天项中
+    if (isSender) {
+        chatItem.appendChild(messageContainer);
+        chatItem.appendChild(avatar);
+    } else {
+        chatItem.appendChild(avatar);
+        chatItem.appendChild(messageContainer);
+    }
+
+    const chatContent = document.getElementById('chat-content');
     chatContent.appendChild(chatItem);
+
+    // 将滚动条滚动到最底部
+    chatContent.scrollTop = chatContent.scrollHeight;
 }
 
 // 监听表单提交事件，添加发送的对话内容
@@ -609,7 +657,7 @@ const echoForm = document.getElementById('echo-form');
 echoForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = document.getElementById('message').value;
-    addChatMessage('发送对话: ' + message);
+    addChatMessage('' + message);
     console.log('获取的消息:', message);
     console.log('消息中是否包含换行符:', message.includes('\n'));
     // 原有的表单提交逻辑
@@ -627,12 +675,6 @@ echoForm.addEventListener('submit', function(e) {
     });
     document.getElementById('message').value = '';
 });
-
-// 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
-// 这里只是示例，需要根据实际情况修改
-function onASRResult(result) {
-    addChatMessage('识别: ' + result);
-}
 
 // 示例：模拟 ASR 结果
 // setInterval(() => {

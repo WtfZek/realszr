@@ -735,14 +735,14 @@ async function waitSpeakingEnd() {
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 function getJsonMessage( jsonMsg ) {
-    //console.log(jsonMsg);
-    console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
+	//console.log(jsonMsg);
+	console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
 
 
-    var rectxt=""+JSON.parse(jsonMsg.data)['text'];
-    var asrmodel=JSON.parse(jsonMsg.data)['mode'];
-    var is_final=JSON.parse(jsonMsg.data)['is_final'];
-    var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
+	var rectxt=""+JSON.parse(jsonMsg.data)['text'];
+	var asrmodel=JSON.parse(jsonMsg.data)['mode'];
+	var is_final=JSON.parse(jsonMsg.data)['is_final'];
+	var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
 
     // 检查识别文本的长度，防止显示区域过满
     var maxTextLength = 500; // 最大字符数
@@ -753,10 +753,10 @@ function getJsonMessage( jsonMsg ) {
         console.log("识别文本已超过最大长度，已自动清空");
     }
 
-    if(asrmodel=="2pass-offline" || asrmodel=="offline")
-    {
-        offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
-        rec_text=offline_text;
+	if(asrmodel=="2pass-offline" || asrmodel=="offline")
+	{
+		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
+		rec_text=offline_text;
 
         // 获取当前时间
         var now = new Date();
@@ -767,7 +767,7 @@ function getJsonMessage( jsonMsg ) {
 
         onASRResult(rectxt.replace(/ +/g,""));
 
-        fetch('http://192.168.3.100:8010/human', {
+		fetch('http://192.168.3.100:8010/human', {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',
@@ -799,30 +799,30 @@ function getJsonMessage( jsonMsg ) {
 
         // 不再等待数字人响应
         // waitSpeakingEnd();
-    }
-    else
-    {
-        rec_text=rec_text+rectxt; //.replace(/ +/g,"");
-    }
-    var varArea=document.getElementById('varArea');
-
-    varArea.value=rec_text;
+	}
+	else
+	{
+		rec_text=rec_text+rectxt; //.replace(/ +/g,"");
+	}
+	var varArea=document.getElementById('varArea');
+	
+	varArea.value=rec_text;
 
     // 仅在最终结果时调用 onASRResult
 
-    console.log( "offline_text: " + asrmodel+","+offline_text);
-    console.log( "rec_text: " + rec_text);
-    if (isfilemode==true && is_final==true){
-        console.log("call stop ws!");
-        play_file();
-        wsconnecter.wsStop();
-
-        info_div.innerHTML="请点击连接";
-
-        btnStart.disabled = true;
-        btnStop.disabled = true;
-        btnConnect.disabled=false;
-    }
+	console.log( "offline_text: " + asrmodel+","+offline_text);
+	console.log( "rec_text: " + rec_text);
+	if (isfilemode==true && is_final==true){
+		console.log("call stop ws!");
+		play_file();
+		wsconnecter.wsStop();
+        
+		info_div.innerHTML="请点击连接";
+ 
+		btnStart.disabled = true;
+		btnStop.disabled = true;
+		btnConnect.disabled=false;
+	}
 }
 
 // 连接状态响应
@@ -1076,17 +1076,67 @@ const chatContent = window.parent.document.getElementById('chat-content');
 console.log('chatContent', chatContent);
 
 // 添加对话内容到弹窗
-function addChatMessage(message) {
+function addChatMessage(message, isSender) {
     const chatItem = window.parent.document.createElement('div');
     chatItem.classList.add('chat-item');
-    chatItem.textContent = message;
+    chatItem.classList.add(isSender ? 'sender' : 'receiver');
+    // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
+    chatItem.style.display = 'flex';
+    chatItem.style.alignItems = 'start'; // 垂直顶部对齐
+    chatItem.style.marginBottom = '10px'; // 为每个聊天项添加底部间距
+
+    // 创建头像图片元素
+    const avatar = window.parent.document.createElement('img');
+    avatar.src = './static/audio.png';
+    avatar.style.width = '24px';
+    avatar.style.height = '24px';
+    avatar.style.borderRadius = '50%';
+    avatar.style.marginRight = '10px';
+
+    // 创建一个容器来包裹头像和消息
+    const messageContainer = window.parent.document.createElement('div');
+    messageContainer.style.display = 'flex';
+    messageContainer.style.alignItems = 'end';
+    messageContainer.style.fontSize = '12px';
+    messageContainer.style.fontFamily = '宋体';
+    messageContainer.style.border = '1px solid #dcdcdc';
+    messageContainer.style.borderRadius = '8px';
+    messageContainer.style.backgroundColor = '#ffffff';
+    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+    messageContainer.style.padding = '10px';
+    messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
+
+    // 将头像和消息添加到容器中
+    if (isSender) {
+        messageContainer.appendChild(window.parent.document.createTextNode(message));
+        chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
+        avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
+        avatar.style.marginRight = 0; // 移除发送者头像左侧间距
+    } else {
+        messageContainer.appendChild(window.parent.document.createTextNode(message));
+        chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
+    }
+
+    // 将容器添加到聊天项中
+    if (isSender) {
+        chatItem.appendChild(messageContainer);
+        chatItem.appendChild(avatar);
+    } else {
+        chatItem.appendChild(avatar);
+        chatItem.appendChild(messageContainer);
+    }
+
+    const chatContent = window.parent.document.getElementById('chat-content');
     chatContent.appendChild(chatItem);
+
+    // 将滚动条滚动到最底部
+    chatContent.scrollTop = chatContent.scrollHeight;
 }
 
 // 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
 // 这里只是示例，需要根据实际情况修改
 function onASRResult(result) {
-    addChatMessage('识别语音: ' + result);
+    addChatMessage('' + result);
 }
 
 // 页面初始化

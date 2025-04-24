@@ -579,3 +579,63 @@ function moveDigitalHuman(x, y) {
 function adjustGreenScreenTolerance(newTolerance) {
     tolerance = newTolerance;
 }
+
+// 获取元素
+const chatModal = document.getElementById('chat-modal');
+const showChatModalButton = document.getElementById('show-chat-modal');
+const closeChatModalButton = document.getElementById('close-chat-modal');
+const chatContent = document.getElementById('chat-content');
+
+// 显示对话记录弹窗
+showChatModalButton.addEventListener('click', function() {
+    chatModal.style.display = 'block';
+});
+
+// 关闭对话记录弹窗
+closeChatModalButton.addEventListener('click', function() {
+    chatModal.style.display = 'none';
+});
+
+// 添加对话内容到弹窗
+function addChatMessage(message) {
+    const chatItem = document.createElement('div');
+    chatItem.classList.add('chat-item');
+    chatItem.textContent = message;
+    chatContent.appendChild(chatItem);
+}
+
+// 监听表单提交事件，添加发送的对话内容
+const echoForm = document.getElementById('echo-form');
+echoForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const message = document.getElementById('message').value;
+    addChatMessage('发送对话: ' + message);
+    console.log('获取的消息:', message);
+    console.log('消息中是否包含换行符:', message.includes('\n'));
+    // 原有的表单提交逻辑
+    fetch('http://192.168.3.100:8010/human', {
+        body: JSON.stringify({
+            text: message,
+            type: 'chat',
+            interrupt: false,
+            sessionid: parseInt(document.getElementById('sessionid').value),
+        }),
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        method: 'POST'
+    });
+    document.getElementById('message').value = '';
+});
+
+// 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
+// 这里只是示例，需要根据实际情况修改
+function onASRResult(result) {
+    addChatMessage('识别: ' + result);
+}
+
+// 示例：模拟 ASR 结果
+// setInterval(() => {
+//     onASRResult('这是一个模拟的语音识别结果');
+// }, 5000);
+

@@ -195,7 +195,7 @@ function handleExternalVolumeData(volumeData) {
             }
         }
         
-        console.log("当前音频音量:", averageVolume);
+        // console.log("当前音频音量:", averageVolume);
         
         // 根据音量暂停/恢复录音
         if (averageVolume > audioVolumeThreshold) {
@@ -733,14 +733,17 @@ async function waitSpeakingEnd() {
     }
 }
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
+// 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 function getJsonMessage( jsonMsg ) {
-	//console.log(jsonMsg);
-	console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
-	var rectxt=""+JSON.parse(jsonMsg.data)['text'];
-	var asrmodel=JSON.parse(jsonMsg.data)['mode'];
-	var is_final=JSON.parse(jsonMsg.data)['is_final'];
-	var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
-    
+    //console.log(jsonMsg);
+    console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
+
+
+    var rectxt=""+JSON.parse(jsonMsg.data)['text'];
+    var asrmodel=JSON.parse(jsonMsg.data)['mode'];
+    var is_final=JSON.parse(jsonMsg.data)['is_final'];
+    var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
+
     // 检查识别文本的长度，防止显示区域过满
     var maxTextLength = 500; // 最大字符数
     if (rec_text.length > maxTextLength) {
@@ -749,19 +752,22 @@ function getJsonMessage( jsonMsg ) {
         offline_text = "";
         console.log("识别文本已超过最大长度，已自动清空");
     }
-    
-	if(asrmodel=="2pass-offline" || asrmodel=="offline")
-	{
-		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
-		rec_text=offline_text;
-        
+
+    if(asrmodel=="2pass-offline" || asrmodel=="offline")
+    {
+        offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
+        rec_text=offline_text;
+
         // 获取当前时间
         var now = new Date();
-        var timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                         now.getMinutes().toString().padStart(2, '0') + ':' + 
-                         now.getSeconds().toString().padStart(2, '0');
-        
-		fetch('http://192.168.3.100:8010/human', {
+        var timeString = now.getHours().toString().padStart(2, '0') + ':' +
+            now.getMinutes().toString().padStart(2, '0') + ':' +
+            now.getSeconds().toString().padStart(2, '0');
+
+
+        onASRResult(rectxt.replace(/ +/g,""));
+
+        fetch('http://192.168.3.100:8010/human', {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',
@@ -772,51 +778,51 @@ function getJsonMessage( jsonMsg ) {
                 'Content-Type': 'application/json'
             },
             method: 'POST'
-      	})
-        .then(response => {
-            if (!response.ok) {
-                console.error('后端响应错误:', response.status);
-                info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
-            } else {
-                console.log('识别文本发送成功');
-                info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
-            }
-            return response.json().catch(e => null);
         })
-        .then(data => {
-            if (data) console.log('后端返回数据:', data);
-        })
-        .catch(error => {
-            console.error('请求失败:', error);
-            info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
-        });
+            .then(response => {
+                if (!response.ok) {
+                    console.error('后端响应错误:', response.status);
+                    info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+                } else {
+                    console.log('识别文本发送成功');
+                    info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
+                }
+                return response.json().catch(e => null);
+            })
+            .then(data => {
+                if (data) console.log('后端返回数据:', data);
+            })
+            .catch(error => {
+                console.error('请求失败:', error);
+                info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+            });
 
-		// 不再等待数字人响应
-		// waitSpeakingEnd();
-	}
-	else
-	{
-		rec_text=rec_text+rectxt; //.replace(/ +/g,"");
-	}
-	var varArea=document.getElementById('varArea');
-	
-	varArea.value=rec_text;
-	console.log( "offline_text: " + asrmodel+","+offline_text);
-	console.log( "rec_text: " + rec_text);
-	if (isfilemode==true && is_final==true){
-		console.log("call stop ws!");
-		play_file();
-		wsconnecter.wsStop();
-        
-		info_div.innerHTML="请点击连接";
- 
-		btnStart.disabled = true;
-		btnStop.disabled = true;
-		btnConnect.disabled=false;
-	}
-	
-	 
- 
+        // 不再等待数字人响应
+        // waitSpeakingEnd();
+    }
+    else
+    {
+        rec_text=rec_text+rectxt; //.replace(/ +/g,"");
+    }
+    var varArea=document.getElementById('varArea');
+
+    varArea.value=rec_text;
+
+    // 仅在最终结果时调用 onASRResult
+
+    console.log( "offline_text: " + asrmodel+","+offline_text);
+    console.log( "rec_text: " + rec_text);
+    if (isfilemode==true && is_final==true){
+        console.log("call stop ws!");
+        play_file();
+        wsconnecter.wsStop();
+
+        info_div.innerHTML="请点击连接";
+
+        btnStart.disabled = true;
+        btnStop.disabled = true;
+        btnConnect.disabled=false;
+    }
 }
 
 // 连接状态响应
@@ -1029,7 +1035,7 @@ function recProcess(buffer, powerLevel, bufferDuration, bufferSampleRate, newBuf
     }
     
     // 添加音量级别显示
-    console.log("当前音量:", powerLevel, "缓冲时长:", bufferDuration);
+    // console.log("当前音量:", powerLevel, "缓冲时长:", bufferDuration);
     
     // 更新音量指示器（如果存在）
     var volumeBar = document.getElementById('volume-bar');
@@ -1064,24 +1070,43 @@ function recProcess(buffer, powerLevel, bufferDuration, bufferSampleRate, newBuf
     }
 }
 
+
+const chatContent = window.parent.document.getElementById('chat-content');
+
+console.log('chatContent', chatContent);
+
+// 添加对话内容到弹窗
+function addChatMessage(message) {
+    const chatItem = window.parent.document.createElement('div');
+    chatItem.classList.add('chat-item');
+    chatItem.textContent = message;
+    chatContent.appendChild(chatItem);
+}
+
+// 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
+// 这里只是示例，需要根据实际情况修改
+function onASRResult(result) {
+    addChatMessage('识别语音: ' + result);
+}
+
 // 页面初始化
 window.onload = function() {
     // 加载保存的设置
-    loadSettings();
+    // loadSettings();
     
     // 初始化音量控制
     initVolumeControls();
     
-    document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space') {
-            handleSpaceKey(e);
-        }
-    });
-    
-    $('#btnConnect').on('click', startASR);
-    $('#selectModels').on('change', setDefaultValuesForModel);
-    $('#rtAddHotWord').on('click', addHotWord);
-    $("#rtHotWordDelete").on('click', deleteHotWord);
+    // document.addEventListener('keydown', (e) => {
+    //     if (e.code === 'Space') {
+    //         handleSpaceKey(e);
+    //     }
+    // });
+    //
+    // $('#btnConnect').on('click', startASR);
+    // $('#selectModels').on('change', setDefaultValuesForModel);
+    // $('#rtAddHotWord').on('click', addHotWord);
+    // $("#rtHotWordDelete").on('click', deleteHotWord);
     
     // ... existing code ...
 };

@@ -110,7 +110,7 @@
             width: 56px;
             height: 56px;
             border-radius: 50%;
-            background-color: var(--background-light);
+            background-color: var(--primary-color);
             box-shadow: var(--box-shadow);
             cursor: pointer;
             z-index: 1002;
@@ -123,7 +123,7 @@
 
         #settings-button:hover {
             transform: scale(1.05);
-            background-color: #f8f9fa;
+            background-color: var(--primary-hover);
         }
 
         #settings-button img {
@@ -611,6 +611,83 @@
             background-color: rgba(255, 255, 255, 0.95);
             transform: translateY(-2px);
         }
+
+        #chat-modal {
+            display: none;
+            position: absolute;
+            top: 20px;
+            left: 40%;
+            min-width: 20%;
+            max-width: 60%;
+            background-color: var(--background-light);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            z-index: 1002;
+            padding: 0;
+            max-height: calc(100vh - 40px);
+            overflow: hidden;
+            transition: var(--transition);
+            opacity: 0.6; /* 设置透明度 */
+        }
+
+        /* 覆盖 #chat-modal 内部的 .modal-scroll-container 的 padding 属性 */
+        #chat-modal .modal-scroll-container {
+            padding: 20px; /* 这里设置你想要的 padding 值 */
+        }
+
+        #chat-modal .modal-scroll-container .div {
+            white-space: nowrap;
+            overflow: visible;
+            word-break: break-all;
+            overflow-wrap: break-word;
+        }
+
+        #show-chat-modal {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            box-shadow: var(--box-shadow);
+            cursor: pointer;
+            z-index: 1002;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: var(--transition);
+            border: none;
+        }
+
+        #show-chat-modal:hover {
+            transform: scale(1.05);
+            background-color: var(--primary-hover);
+        }
+
+        .chat-item {
+            /* 每个聊天消息的样式 */
+            border: 1px solid #dcdcdc;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .chat-item .div {
+            white-space: nowrap;
+            overflow: visible;
+            word-break: break-all;
+            overflow-wrap: break-word;
+        }
+
+        .chat-item:hover {
+            /* 鼠标悬停时的样式 */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -629,9 +706,32 @@
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
     </button>
+    <!-- 显示对话记录的按钮 -->
+    <button id="show-chat-modal">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <circle cx="7" cy="10" r="1"></circle>
+            <circle cx="12" cy="10" r="1"></circle>
+            <circle cx="17" cy="10" r="1"></circle>
+        </svg>
+    </button>
 
     <!-- &lt;!&ndash; 弹窗遮罩层 &ndash;&gt;-->
     <!-- <div id="modal-overlay"></div>-->
+
+    <!-- 对话记录弹窗 -->
+    <div id="chat-modal">
+        <div class="modal-header" id="chat-drag-handle">
+            <h2>对话记录</h2>
+            <button class="close-button" id="close-chat-modal">&times;</button>
+        </div>
+        <div class="modal-scroll-container" id="chat-content">
+<!--            <div class="chat-item">-->
+<!--                This is a long text that should wrap inside the chat item container. This is a long text that should wrap inside-->
+<!--                the chat item container. This is a long text that should wrap inside the chat item container.-->
+<!--            </div>-->
+        </div>
+    </div>
 
     <!-- 设置弹窗 -->
     <div id="settings-modal">
@@ -987,6 +1087,9 @@
             </div>
         </div>
     </div>
+
+
+
 </div>
 
     <script src="client.js"></script>
@@ -2645,6 +2748,28 @@
                         initAudioMonitoring();
                     }
                 }
+            });
+
+            // 对话记录弹窗拖动功能实现
+            const chatDragHandle = document.getElementById('chat-drag-handle');
+            let isChatDragging = false;
+            let chatOffsetX, chatOffsetY;
+
+            chatDragHandle.addEventListener('mousedown', function(e) {
+                isChatDragging = true;
+                chatOffsetX = e.clientX - chatModal.offsetLeft;
+                chatOffsetY = e.clientY - chatModal.offsetTop;
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (isChatDragging) {
+                    chatModal.style.left = (e.clientX - chatOffsetX) + 'px';
+                    chatModal.style.top = (e.clientY - chatOffsetY) + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', function() {
+                isChatDragging = false;
             });
         });
     </script>

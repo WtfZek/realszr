@@ -1075,8 +1075,19 @@ const chatContent = window.parent.document.getElementById('chat-content');
 
 console.log('chatContent', chatContent);
 
-// 添加对话内容到弹窗
-function addChatMessage(message, isSender) {
+/**
+ * 向聊天窗口添加文本消息
+ * @param {string} message - 要显示的文本消息
+ * @param {string|boolean} position - 消息位置
+ *   - 'left' 或 false: 显示在左侧（接收者）
+ *   - 'right' 或 true: 显示在右侧（发送者）
+ */
+function addChatMessage(message, position) {
+    // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
+    // 'left' 或 false 表示左侧消息（接收者）
+    // 'right' 或 true 表示右侧消息（发送者）
+    const isSender = position === 'right' || position === true;
+    
     const chatItem = window.parent.document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -1126,17 +1137,21 @@ function addChatMessage(message, isSender) {
         chatItem.appendChild(messageContainer);
     }
 
+    // 首先尝试在父窗口查找chat-content元素
     const chatContent = window.parent.document.getElementById('chat-content');
-    chatContent.appendChild(chatItem);
-
-    // 将滚动条滚动到最底部
-    chatContent.scrollTop = chatContent.scrollHeight;
+    if (chatContent) {
+        chatContent.appendChild(chatItem);
+        // 将滚动条滚动到最底部
+        chatContent.scrollTop = chatContent.scrollHeight;
+    } else {
+        console.error('找不到chat-content元素，无法添加消息');
+    }
 }
 
 // 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
 // 这里只是示例，需要根据实际情况修改
 function onASRResult(result) {
-    addChatMessage('' + result);
+    addChatMessage('' + result, 'right');
 }
 
 // 页面初始化

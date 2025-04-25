@@ -593,9 +593,19 @@ const chatContent = document.getElementById('chat-content');
 //     isChatModalOpen = false;
 // });
 
-// 添加对话内容到弹窗
-// 添加对话内容到弹窗
-function addChatMessage(message, isSender) {
+/**
+ * 向聊天窗口添加文本消息
+ * @param {string} message - 要显示的文本消息
+ * @param {string|boolean} position - 消息位置
+ *   - 'left' 或 false: 显示在左侧（接收者）
+ *   - 'right' 或 true: 显示在右侧（发送者）
+ */
+function addChatMessage(message, position) {
+    // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
+    // 'left' 或 false 表示左侧消息（接收者）
+    // 'right' 或 true 表示右侧消息（发送者）
+    const isSender = position === 'right' || position === true;
+    
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -645,11 +655,199 @@ function addChatMessage(message, isSender) {
         chatItem.appendChild(messageContainer);
     }
 
-    const chatContent = document.getElementById('chat-content');
-    chatContent.appendChild(chatItem);
+    // 首先尝试在当前文档中查找chat-content元素
+    let chatContent = document.getElementById('chat-content');
+    // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
+    if (!chatContent && window.parent && window.parent !== window) {
+        try {
+            chatContent = window.parent.document.getElementById('chat-content');
+            console.log('在父窗口找到chat-content元素');
+        } catch (e) {
+            console.error('尝试访问父窗口时出错:', e);
+        }
+    }
 
-    // 将滚动条滚动到最底部
-    chatContent.scrollTop = chatContent.scrollHeight;
+    if (chatContent) {
+        chatContent.appendChild(chatItem);
+        // 将滚动条滚动到最底部
+        chatContent.scrollTop = chatContent.scrollHeight;
+    } else {
+        console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
+    }
+}
+
+/**
+ * 向聊天窗口添加媒体消息
+ * @param {string} mediaSource - 媒体源URL或HTML内容
+ * @param {string} mediaType - 媒体类型，可选值：'image'、'audio'、'video'、'html'
+ * @param {string|boolean} position - 消息位置
+ *   - 'left' 或 false: 显示在左侧（接收者）
+ *   - 'right' 或 true: 显示在右侧（发送者）
+ */
+function addChatMedia(mediaSource, mediaType, position) {
+    // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
+    // 'left' 或 false 表示左侧消息（接收者）
+    // 'right' 或 true 表示右侧消息（发送者）
+    const isSender = position === 'right' || position === true;
+    
+    const chatItem = document.createElement('div');
+    chatItem.classList.add('chat-item');
+    chatItem.classList.add(isSender ? 'sender' : 'receiver');
+    // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
+    chatItem.style.display = 'flex';
+    chatItem.style.alignItems = 'start'; // 垂直顶部对齐
+    chatItem.style.marginBottom = '10px'; // 为每个聊天项添加底部间距
+
+    // 创建头像图片元素
+    const avatar = document.createElement('img');
+    avatar.src = './static/media.png';
+    avatar.style.width = '24px';
+    avatar.style.height = '24px';
+    avatar.style.borderRadius = '50%';
+    avatar.style.marginRight = '10px';
+
+    // 创建一个容器来包裹头像和消息
+    const messageContainer = document.createElement('div');
+    messageContainer.style.display = 'flex';
+    messageContainer.style.alignItems = 'center';
+    messageContainer.style.justifyContent = 'center';
+    messageContainer.style.fontFamily = '宋体';
+    messageContainer.style.border = '1px solid #dcdcdc';
+    messageContainer.style.borderRadius = '8px';
+    messageContainer.style.backgroundColor = '#ffffff';
+    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+    messageContainer.style.padding = '10px';
+    messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
+
+    // 根据媒体类型添加不同的元素
+    switch (mediaType.toLowerCase()) {
+        case 'image':
+            // 创建图片元素
+            const imgElement = document.createElement('img');
+            imgElement.src = mediaSource;
+            imgElement.style.maxWidth = '100%';
+            imgElement.style.maxHeight = '200px';
+            imgElement.style.borderRadius = '4px';
+            
+            // 添加点击放大查看功能
+            imgElement.style.cursor = 'pointer';
+            imgElement.onclick = function() {
+                const fullImg = document.createElement('div');
+                fullImg.style.position = 'fixed';
+                fullImg.style.top = '0';
+                fullImg.style.left = '0';
+                fullImg.style.width = '100%';
+                fullImg.style.height = '100%';
+                fullImg.style.backgroundColor = 'rgba(0,0,0,0.8)';
+                fullImg.style.display = 'flex';
+                fullImg.style.justifyContent = 'center';
+                fullImg.style.alignItems = 'center';
+                fullImg.style.zIndex = '9999';
+                
+                const img = document.createElement('img');
+                img.src = mediaSource;
+                img.style.maxWidth = '90%';
+                img.style.maxHeight = '90%';
+                img.style.objectFit = 'contain';
+                
+                fullImg.appendChild(img);
+                document.body.appendChild(fullImg);
+                
+                fullImg.onclick = function() {
+                    document.body.removeChild(fullImg);
+                };
+            };
+            
+            messageContainer.appendChild(imgElement);
+            break;
+            
+        case 'audio':
+            // 创建音频播放器元素
+            const audioElement = document.createElement('audio');
+            audioElement.src = mediaSource;
+            audioElement.controls = true;
+            audioElement.style.maxWidth = '100%';
+            audioElement.style.borderRadius = '4px';
+            
+            messageContainer.appendChild(audioElement);
+            break;
+            
+        case 'video':
+            // 创建视频播放器元素
+            const videoElement = document.createElement('video');
+            videoElement.src = mediaSource;
+            videoElement.controls = true;
+            videoElement.style.maxWidth = '100%';
+            videoElement.style.maxHeight = '200px';
+            videoElement.style.borderRadius = '4px';
+            
+            messageContainer.appendChild(videoElement);
+            break;
+            
+        case 'html':
+            // 处理HTML内容
+            const contentDiv = document.createElement('div');
+            contentDiv.innerHTML = mediaSource;
+            contentDiv.style.maxWidth = '100%';
+            
+            // 安全处理：移除所有脚本标签
+            const scripts = contentDiv.getElementsByTagName('script');
+            for (let i = scripts.length - 1; i >= 0; i--) {
+                scripts[i].parentNode.removeChild(scripts[i]);
+            }
+            
+            // 确保所有链接在新窗口打开
+            const links = contentDiv.getElementsByTagName('a');
+            for (let i = 0; i < links.length; i++) {
+                links[i].setAttribute('target', '_blank');
+                links[i].setAttribute('rel', 'noopener noreferrer');
+            }
+            
+            messageContainer.appendChild(contentDiv);
+            break;
+            
+        default:
+            // 默认处理为纯文本
+            messageContainer.appendChild(document.createTextNode('不支持的媒体类型: ' + mediaType));
+    }
+
+    // 设置对齐方式
+    if (isSender) {
+        chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
+        avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
+        avatar.style.marginRight = 0; // 移除发送者头像左侧间距
+    } else {
+        chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
+    }
+
+    // 将容器添加到聊天项中
+    if (isSender) {
+        chatItem.appendChild(messageContainer);
+        chatItem.appendChild(avatar);
+    } else {
+        chatItem.appendChild(avatar);
+        chatItem.appendChild(messageContainer);
+    }
+
+    // 首先尝试在当前文档中查找chat-content元素
+    let chatContent = document.getElementById('chat-content');
+    // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
+    if (!chatContent && window.parent && window.parent !== window) {
+        try {
+            chatContent = window.parent.document.getElementById('chat-content');
+            console.log('在父窗口找到chat-content元素');
+        } catch (e) {
+            console.error('尝试访问父窗口时出错:', e);
+        }
+    }
+
+    if (chatContent) {
+        chatContent.appendChild(chatItem);
+        // 将滚动条滚动到最底部
+        chatContent.scrollTop = chatContent.scrollHeight;
+    } else {
+        console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
+    }
 }
 
 // 监听表单提交事件，添加发送的对话内容
@@ -657,9 +855,9 @@ const echoForm = document.getElementById('echo-form');
 echoForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = document.getElementById('message').value;
-    addChatMessage('' + message);
+    addChatMessage('' + message, 'right');
     console.log('获取的消息:', message);
-    console.log('消息中是否包含换行符:', message.includes('\n'));
+    // console.log('消息中是否包含换行符:', message.includes('\n'));
     // 原有的表单提交逻辑
     fetch('http://192.168.3.100:8010/human', {
         body: JSON.stringify({
@@ -680,4 +878,124 @@ echoForm.addEventListener('submit', function(e) {
 // setInterval(() => {
 //     onASRResult('这是一个模拟的语音识别结果');
 // }, 5000);
+
+/**
+ * 测试添加各种媒体消息的函数
+ */
+function testChatMedia() {
+    // 测试图片消息 - 放在左侧
+    addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 'left');
+    
+    // 500毫秒后添加一个右侧的图片消息
+    // setTimeout(() => {
+    //     addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 'right');
+    // }, 500);
+    
+    // 测试音频消息 - 放在左侧
+    setTimeout(() => {
+        addChatMedia('https://www.w3schools.com/html/horse.mp3', 'audio', 'left');
+    }, 1000);
+    
+    // 测试音频消息 - 放在右侧
+    // setTimeout(() => {
+    //     addChatMedia('https://www.w3schools.com/html/horse.mp3', 'audio', 'right');
+    // }, 1500);
+    
+    // 测试视频消息 - 放在左侧
+    setTimeout(() => {
+        addChatMedia('https://www.w3schools.com/html/movie.mp4', 'video', 'left');
+    }, 2000);
+    
+
+    // 测试视频消息 - 放在左侧
+    // setTimeout(() => {
+    //     addChatMedia('https://www.w3schools.com/html/movie.mp4', 'video', 'right');
+    // }, 2500);
+
+    // 测试HTML内容 - 放在左侧
+    setTimeout(() => {
+        const htmlContent = `
+            <div style="color: blue; font-weight: bold;">
+                这是<span style="color:red">富文本</span>消息
+                <ul>
+                    <li>支持HTML格式</li>
+                    <li>可以包含列表</li>
+                    <li>和其他HTML元素</li>
+                </ul>
+                <a href="https://www.example.com">示例链接</a>
+            </div>
+        `;
+        addChatMedia(htmlContent, 'html', 'left');
+    }, 3000);
+    
+    // 测试HTML内容 - 放在右侧
+    // setTimeout(() => {
+    //     const htmlContent = `
+    //         <div style="color: green; font-weight: bold;">
+    //             右侧<span style="color:purple">富文本</span>消息
+    //             <ul>
+    //                 <li>支持不同样式</li>
+    //                 <li>可以放在右侧</li>
+    //             </ul>
+    //         </div>
+    //     `;
+    //     addChatMedia(htmlContent, 'html', 'right');
+    // }, 3500);
+}
+
+// 如需测试，可以在浏览器控制台中调用testChatMedia()函数
+// addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', false);
+
+// 页面完全加载后的处理
+window.onload = function() {
+    console.log('Window 已完全加载');
+    
+    // 为测试按钮添加事件监听器
+    const testChatMediaButton = document.getElementById('test-chat-media');
+    if (testChatMediaButton) {
+        console.log('找到测试按钮，添加点击事件');
+        testChatMediaButton.addEventListener('click', function() {
+            console.log('点击了测试按钮');
+            // 确保聊天对话框已打开
+            const chatModal = document.getElementById('chat-modal');
+            if (chatModal && window.getComputedStyle(chatModal).display === 'none') {
+                const showChatModalButton = document.getElementById('show-chat-modal');
+                if (showChatModalButton) {
+                    showChatModalButton.click();
+                }
+            }
+            
+            // 测试添加媒体消息
+            testChatMedia();
+        });
+    }
+    
+    // 尝试查找聊天内容容器
+    const chatContent = document.getElementById('chat-content');
+    if (chatContent) {
+        console.log('Window.onload: 在当前窗口找到chat-content');
+    } else if (window.parent && window.parent !== window) {
+        try {
+            const parentChatContent = window.parent.document.getElementById('chat-content');
+            if (parentChatContent) {
+                console.log('Window.onload: 在父窗口找到chat-content');
+            } else {
+                console.error('Window.onload: 在父窗口中也找不到chat-content');
+            }
+        } catch (e) {
+            console.error('Window.onload: 访问父窗口出错', e);
+        }
+    } else {
+        console.error('Window.onload: 无法找到chat-content元素');
+    }
+};
+
+/**
+ * 处理语音识别结果
+ * @param {string} result - 语音识别得到的文本结果
+ */
+function onASRResult(result) {
+    // 将识别结果作为左侧消息显示（用户说的话）
+    addChatMessage('' + result, 'left');
+}
 

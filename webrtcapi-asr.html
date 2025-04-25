@@ -703,6 +703,7 @@
             align-items: center;
             transition: var(--transition);
             border: none;
+            display: none;
         }
 
         #show-chat-modal:hover {
@@ -1272,7 +1273,7 @@
             }
         });
 
-        start();
+        // start();
 
         $(document).ready(function() {
 
@@ -1934,6 +1935,27 @@
                 canvas.style.top = value + 'px';
             });
 
+            // 页面加载后初始化数字人到底部居中位置
+            window.addEventListener('load', function() {
+                // 确保canvas和media元素已加载
+                const canvas = document.getElementById('canvas');
+                const mediaDiv = document.getElementById('media');
+                
+                if(canvas && mediaDiv) {
+                    setTimeout(function() {
+                        positionDigitalHuman('centerBottom', 0); // 无动画直接定位
+                        
+                        // 更新UI滑块值
+                        const left = parseInt(canvas.style.left) || 0;
+                        const top = parseInt(canvas.style.top) || 0;
+                        xOffsetSlider.value = left;
+                        xOffsetValue.value = left;
+                        yOffsetSlider.value = top;
+                        yOffsetValue.value = top;
+                    }, 500); // 延迟500ms确保页面元素都已加载完成
+                }
+            });
+
             // 初始化视频宽度，考虑锁定比例
             customWidthSlider.addEventListener('input', function () {
                 const canvas = document.getElementById('canvas');
@@ -2458,25 +2480,7 @@
             const positionCenterBottom = document.getElementById('positionCenterBottom');
             
             positionLeftBottom.addEventListener('click', function() {
-                const canvas = document.getElementById('canvas');
-                const mediaDiv = document.getElementById('media');
-                const mediaDivRect = mediaDiv.getBoundingClientRect();
-                const canvasWidth = parseInt(canvas.style.width || customWidthValue.value);
-                const canvasHeight = parseInt(canvas.style.height || customHeightValue.value);
-                
-                // 计算左下角位置
-                const left = 0;
-                const top = mediaDivRect.height - canvasHeight;
-                
-                // 设置位置
-                canvas.style.left = left + 'px';
-                canvas.style.top = top + 'px';
-                
-                // 更新滑块
-                xOffsetSlider.value = left;
-                xOffsetValue.value = left;
-                yOffsetSlider.value = top;
-                yOffsetValue.value = top;
+                positionDigitalHuman('leftBottom', 1.2);
             });
             
             positionRightBottom.addEventListener('click', function() {
@@ -2505,51 +2509,18 @@
             const positionCenterMiddle = document.getElementById('positionCenterMiddle');
             positionCenterMiddle.addEventListener('click', function(e) {
                 e.stopPropagation(); // 防止事件冒泡
-                
-                const canvas = document.getElementById('canvas');
-                const mediaDiv = document.getElementById('media');
-                const mediaDivRect = mediaDiv.getBoundingClientRect();
-                const canvasWidth = parseInt(canvas.style.width || customWidthValue.value);
-                const canvasHeight = parseInt(canvas.style.height || customHeightValue.value);
-                
-                // 计算中心位置
-                const left = (mediaDivRect.width - canvasWidth) / 2;
-                const top = (mediaDivRect.height - canvasHeight) / 2;
-                
-                // 设置位置
-                canvas.style.left = left + 'px';
-                canvas.style.top = top + 'px';
-                
-                // 更新滑块
-                xOffsetSlider.value = left;
-                xOffsetValue.value = left;
-                yOffsetSlider.value = top;
-                yOffsetValue.value = top;
+                positionDigitalHuman('centerMiddle', 0.4);
             });
             
             // 居中到底部
             positionCenterBottom.addEventListener('click', function(e) {
                 e.stopPropagation(); // 防止事件冒泡
-                
-                const canvas = document.getElementById('canvas');
-                const mediaDiv = document.getElementById('media');
-                const mediaDivRect = mediaDiv.getBoundingClientRect();
-                const canvasWidth = parseInt(canvas.style.width || customWidthValue.value);
-                const canvasHeight = parseInt(canvas.style.height || customHeightValue.value);
-                
-                // 计算中间底部位置
-                const left = (mediaDivRect.width - canvasWidth) / 2;
-                const top = mediaDivRect.height - canvasHeight;
-                
-                // 设置位置
-                canvas.style.left = left + 'px';
-                canvas.style.top = top + 'px';
-                
-                // 更新滑块
-                xOffsetSlider.value = left;
-                xOffsetValue.value = left;
-                yOffsetSlider.value = top;
-                yOffsetValue.value = top;
+                positionDigitalHuman('centerBottom', 0.4);
+            });
+            
+            // 右下角定位
+            positionRightBottom.addEventListener('click', function() {
+                positionDigitalHuman('rightBottom', 0.4);
             });
             
             // 背景全屏适配
@@ -3536,6 +3507,165 @@
                 localStorage.setItem('chatXPosition', xPercent);
                 localStorage.setItem('chatYPosition', yPercent);
             };
+
+            // 添加全局变量来跟踪动画状态
+            let currentPositionAnimation = null; // 存储当前动画的ID
+            
+            /**
+             * 数字人定位函数 - 支持多种预设位置和动画效果
+             * @param {string} position - 定位类型: 'center', 'centerBottom', 'rightBottom', 'centerMiddle' 等
+             * @param {number} animationSpeed - 动画速度比率，1为正常速度，0为无动画，大于1加速
+             */
+            function positionDigitalHuman(position, animationSpeed = 1) {
+                // 取消任何正在进行的动画
+                if (currentPositionAnimation) {
+                    cancelAnimationFrame(currentPositionAnimation);
+                    currentPositionAnimation = null;
+                }
+                
+                const canvas = document.getElementById('canvas');
+                const mediaDiv = document.getElementById('media');
+                const mediaDivRect = mediaDiv.getBoundingClientRect();
+                const canvasWidth = parseInt(canvas.style.width || customWidthValue.value);
+                const canvasHeight = parseInt(canvas.style.height || customHeightValue.value);
+                
+                // 目标位置坐标
+                let targetLeft = 0;
+                let targetTop = 0;
+                
+                // 根据位置类型计算目标坐标
+                switch(position) {
+                    case 'center':
+                    case 'centerMiddle':
+                        // 居中
+                        targetLeft = (mediaDivRect.width - canvasWidth) / 2;
+                        targetTop = (mediaDivRect.height - canvasHeight) / 2;
+                        break;
+                    case 'centerBottom':
+                        // 底部居中
+                        targetLeft = (mediaDivRect.width - canvasWidth) / 2;
+                        targetTop = mediaDivRect.height - canvasHeight;
+                        break;
+                    case 'rightBottom':
+                        // 右下角
+                        targetLeft = mediaDivRect.width - canvasWidth;
+                        targetTop = mediaDivRect.height - canvasHeight;
+                        break;
+                    case 'leftBottom':
+                        // 左下角
+                        targetLeft = 0;
+                        targetTop = mediaDivRect.height - canvasHeight;
+                        break;
+                    case 'topCenter':
+                        // 顶部居中
+                        targetLeft = (mediaDivRect.width - canvasWidth) / 2;
+                        targetTop = 0;
+                        break;
+                    case 'topLeft':
+                        // 左上角
+                        targetLeft = 0;
+                        targetTop = 0;
+                        break;
+                    case 'topRight':
+                        // 右上角
+                        targetLeft = mediaDivRect.width - canvasWidth;
+                        targetTop = 0;
+                        break;
+                    case 'leftMiddle':
+                        // 左侧居中
+                        targetLeft = 0;
+                        targetTop = (mediaDivRect.height - canvasHeight) / 2;
+                        break;
+                    case 'rightMiddle':
+                        // 右侧居中
+                        targetLeft = mediaDivRect.width - canvasWidth;
+                        targetTop = (mediaDivRect.height - canvasHeight) / 2;
+                        break;
+                    default:
+                        console.warn('未知的定位类型:', position);
+                        return;
+                }
+                
+                // 获取当前位置
+                const currentLeft = parseFloat(canvas.style.left) || 0;
+                const currentTop = parseFloat(canvas.style.top) || 0;
+                
+                // 如果不需要动画，或者目标位置与当前位置一致，直接设置位置
+                if (animationSpeed <= 0 || 
+                    (Math.abs(currentLeft - targetLeft) < 1 && Math.abs(currentTop - targetTop) < 1)) {
+                    applyPosition(targetLeft, targetTop);
+                    return;
+                }
+                
+                // 记录动画开始时间
+                console.log(`开始动画：从(${currentLeft},${currentTop}) 到 (${targetLeft},${targetTop}), 速度: ${animationSpeed}`);
+                const startPosition = { left: currentLeft, top: currentTop };
+                const endPosition = { left: targetLeft, top: targetTop };
+                
+                // 使用动画过渡
+                const duration = 500 / animationSpeed; // 基础动画时长500ms，根据速度比率调整
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsedTime = currentTime - startTime;
+                    const progress = Math.min(elapsedTime / duration, 1);
+                    
+                    // 使用缓动函数让动画更自然
+                    const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+                    
+                    // 计算当前动画帧的位置
+                    const currentAnimLeft = startPosition.left + (endPosition.left - startPosition.left) * easeProgress;
+                    const currentAnimTop = startPosition.top + (endPosition.top - startPosition.top) * easeProgress;
+                    
+                    // 应用位置
+                    applyPosition(currentAnimLeft, currentAnimTop);
+                    
+                    // 继续动画或结束
+                    if (progress < 1) {
+                        currentPositionAnimation = requestAnimationFrame(animate);
+                    } else {
+                        // 动画完成
+                        currentPositionAnimation = null;
+                        console.log("动画完成");
+                    }
+                }
+                
+                // 启动动画
+                currentPositionAnimation = requestAnimationFrame(animate);
+                
+                // 辅助函数 - 应用位置变化到UI和控件
+                function applyPosition(left, top) {
+                    // 更新canvas位置
+                    canvas.style.left = left + 'px';
+                    canvas.style.top = top + 'px';
+                    
+                    // 更新滑块和输入值
+                    xOffsetSlider.value = left;
+                    xOffsetValue.value = left;
+                    yOffsetSlider.value = top;
+                    yOffsetValue.value = top;
+                }
+            }
+            
+            // 修改按钮事件处理程序，使用新的定位方法
+            positionCenterMiddle.addEventListener('click', function(e) {
+                e.stopPropagation(); // 防止事件冒泡
+                positionDigitalHuman('centerMiddle', 0.4); // 使用1.5倍速动画
+            });
+            
+            positionRightBottom.addEventListener('click', function() {
+                positionDigitalHuman('rightBottom', 0.4); // 使用1.5倍速动画
+            });
+            
+            positionCenterBottom.addEventListener('click', function(e) {
+                e.stopPropagation(); // 防止事件冒泡
+                positionDigitalHuman('centerBottom', 0.4); // 使用1.5倍速动画
+            });
+            
+            positionLeftBottom.addEventListener('click', function() {
+                positionDigitalHuman('leftBottom', 0.4); // 使用1.5倍速动画
+            });
+            // ... (现有代码继续)
         });
     </script>
 </body>

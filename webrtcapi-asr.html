@@ -682,7 +682,7 @@
             background-color: var(--primary-color);
             box-shadow: var(--box-shadow);
             cursor: pointer;
-            z-index: 1000;
+            z-index: 1003;
             transition: all 0.3s ease;
         }
 
@@ -748,6 +748,118 @@
             width: 20px;
             height: 20px;
         }
+        
+        /* 添加语音识别圆形按钮样式 */
+        #voice-recognition-button {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #4361ee;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            z-index: 1002;
+            outline: none;
+            display: none;
+        }
+        
+        #voice-recognition-button:active, 
+        #voice-recognition-button.recording {
+            background-color: #f72585;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transform: translateX(-50%) scale(0.95);
+        }
+        
+        #voice-recognition-button svg {
+            width: 30px;
+            height: 30px;
+        }
+        
+        /* 添加录音动画效果 */
+        #voice-recognition-button.recording::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: rgba(247, 37, 133, 0.3);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 0.7;
+            }
+            70% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+        }
+        
+        /* 移动设备适配 */
+        @media (max-width: 768px) {
+            #voice-recognition-button {
+                width: 80px;
+                height: 80px;
+                bottom: 40px;
+                display: flex;
+            }
+            
+            #voice-recognition-button svg {
+                width: 40px;
+                height: 40px;
+            }
+            
+            /* 在语音识别标签页时调整按钮位置 */
+            .tab-recognition-active #voice-recognition-button {
+                bottom: 20px;
+            }
+        }
+        
+        /* 平板设备适配 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            #voice-recognition-button {
+                width: 70px;
+                height: 70px;
+                bottom: 35px;
+            }
+            
+            #voice-recognition-button svg {
+                width: 35px;
+                height: 35px;
+            }
+        }
+        
+        /* 桌面设备适配 */
+        @media (min-width: 1025px) {
+            #voice-recognition-button {
+                width: 60px;
+                height: 60px;
+                bottom: 30px;
+                right: 30px;
+                left: auto;
+                transform: none;
+            }
+            
+            #voice-recognition-button:active, 
+            #voice-recognition-button.recording {
+                transform: scale(0.95);
+            }
+        }
     </style>
 </head>
 <body>
@@ -759,6 +871,16 @@
         <div id="canvas-status" class="canvas-status">按住「空格键」可调整数字人，按「Alt」键可调整背景</div>
     </div>
 
+    <!-- 添加语音识别按钮 -->
+    <button id="voice-recognition-button" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+    </button>
+
     <!-- 设置按钮 -->
     <button id="settings-button">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -767,7 +889,7 @@
         </svg>
     </button>
     <!-- 显示对话记录的按钮 -->
-    <button id="show-chat-modal">
+    <button id="show-chat-modal" style="padding: 16px;">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             <circle cx="7" cy="10" r="1"></circle>
@@ -775,7 +897,6 @@
             <circle cx="17" cy="10" r="1"></circle>
         </svg>
     </button>
-    
     <!-- 测试聊天媒体消息的按钮 -->
     <button id="test-chat-media">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1277,6 +1398,7 @@
 
         $(document).ready(function() {
 
+
             // 简单的居中函数
             function centerCanvas() {
                 const canvas = document.getElementById('canvas');
@@ -1567,33 +1689,33 @@
             // });
 
             // 原有表单提交逻辑
-            $('#echo-form').on('submit', function(e) {
-                e.preventDefault();
-                var message = $('#message').val();
-                console.log('Sending: ' + message);
-                console.log('sessionid: ',document.getElementById('sessionid').value);
-                fetch('http://192.168.3.100:8010/human', {
-                    body: JSON.stringify({
-                        text: message,
-                        type: 'chat',
-                        interrupt: false,
-                        sessionid: parseInt(document.getElementById('sessionid').value),
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                });
-                $('#message').val('');
-                // 发送后关闭弹窗
-                // settingsModal.style.display = 'none';
-                // modalOverlay.style.display = 'none';
-            });
+            // $('#echo-form').on('submit', function(e) {
+            //     e.preventDefault();
+            //     var message = $('#message').val();
+            //     console.log('Sending: ' + message);
+            //     console.log('sessionid: ',document.getElementById('sessionid').value);
+            //     fetch('http://192.168.3.100:8018/human', {
+            //         body: JSON.stringify({
+            //             text: message,
+            //             type: 'chat',
+            //             interrupt: false,
+            //             sessionid: parseInt(document.getElementById('sessionid').value),
+            //         }),
+            //         headers: {
+            //             'Content-Type': 'application/json'
+            //         },
+            //         method: 'POST'
+            //     });
+            //     $('#message').val('');
+            //     // 发送后关闭弹窗
+            //     // settingsModal.style.display = 'none';
+            //     // modalOverlay.style.display = 'none';
+            // });
 
             // 录制控制逻辑
             $('#btn_start_record').click(function() {
                 console.log('Starting recording...');
-                fetch('http://192.168.3.100:8010/record', {
+                fetch('http://192.168.3.100:8018/record', {
                     body: JSON.stringify({
                         type: 'start_record',
                     }),
@@ -1616,7 +1738,7 @@
 
             $('#btn_stop_record').click(function() {
                 console.log('Stopping recording...');
-                fetch('http://192.168.3.100:8010/record', {
+                fetch('http://192.168.3.100:8018/record', {
                     body: JSON.stringify({
                         type: 'end_record',
                     }),
@@ -1952,7 +2074,7 @@
                         xOffsetValue.value = left;
                         yOffsetSlider.value = top;
                         yOffsetValue.value = top;
-                    }, 500); // 延迟500ms确保页面元素都已加载完成
+                    }, 1500); // 延迟500ms确保页面元素都已加载完成
                 }
             });
 
@@ -2321,24 +2443,6 @@
                 antialiasingSlider.value = value;
                 adjustAntiAliasingStrength(value);
             });
-
-            // 初始化音频延迟控制滑块
-            // const audioDelaySlider = document.getElementById('audioDelaySlider');
-            // const audioDelayValue = document.getElementById('audioDelayValue');
-
-            // 为音频延迟滑块添加监听器
-            // audioDelaySlider.addEventListener('input', function() {
-            //     const value = parseFloat(audioDelaySlider.value);
-            //     audioDelayValue.value = value.toFixed(1);
-            //     adjustAudioDelay(value);
-            // });
-
-            // // 为音频延迟数值输入框添加监听器
-            // audioDelayValue.addEventListener('input', function() {
-            //     const value = parseFloat(this.value);
-            //     audioDelaySlider.value = value;
-            //     adjustAudioDelay(value);
-            // });
 
             // 背景位置和缩放调整
             const bgXOffsetSlider = document.getElementById('bgXOffsetSlider');
@@ -3665,7 +3769,149 @@
             positionLeftBottom.addEventListener('click', function() {
                 positionDigitalHuman('leftBottom', 0.4); // 使用1.5倍速动画
             });
-            // ... (现有代码继续)
+        });
+    </script>
+    
+    <!-- 添加语音识别按钮的事件处理脚本 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const voiceButton = document.getElementById('voice-recognition-button');
+            
+            // 获取ASR iframe的引用
+            const asrIframe = document.getElementById('asr-iframe');
+            
+            // 录音状态标志
+            let isRecording = false;
+            
+            // 透明度控制变量
+            let fadeTimeout;
+            const FADE_DELAY = 15000; // 15秒不操作后淡出
+            const DEFAULT_OPACITY = 0.45; // 默认透明度
+            
+            // 设置初始透明度
+            voiceButton.style.opacity = DEFAULT_OPACITY;
+            
+            // 淡出函数
+            function fadeOut() {
+                voiceButton.style.opacity = '0';
+                voiceButton.style.transition = 'opacity 1s ease';
+            }
+            
+            // 重置透明度并设置淡出计时器
+            function resetOpacity() {
+                voiceButton.style.opacity = DEFAULT_OPACITY;
+                voiceButton.style.transition = 'opacity 0.3s ease';
+                
+                // 清除之前的计时器
+                clearTimeout(fadeTimeout);
+                
+                // 设置新的计时器
+                fadeTimeout = setTimeout(fadeOut, FADE_DELAY);
+            }
+            
+            // 初始计时器
+            fadeTimeout = setTimeout(fadeOut, FADE_DELAY);
+            
+            // 添加触摸或鼠标交互时重置透明度
+            voiceButton.addEventListener('mouseover', resetOpacity);
+            voiceButton.addEventListener('touchstart', resetOpacity);
+            
+            // 按下按钮事件
+            function handleButtonDown(event) {
+                event.preventDefault(); // 防止默认行为
+                
+                if (isRecording) return; // 已经在录音中，不重复处理
+                
+                console.log('语音按钮按下，开始录音');
+                voiceButton.classList.add('recording'); // 添加录音状态类
+                isRecording = true;
+                
+                // 重置透明度
+                resetOpacity();
+                
+                // 调用asr/main.js中的startly方法
+                if (asrIframe && asrIframe.contentWindow) {
+                    try {
+                        asrIframe.contentWindow.startly();
+                        console.log('成功调用startly()方法');
+                    } catch (e) {
+                        console.error('调用startly()方法失败:', e);
+                    }
+                }
+            }
+            
+            // 松开按钮事件
+            function handleButtonUp(event) {
+                event.preventDefault(); // 防止默认行为
+                
+                if (!isRecording) return; // 没有在录音，不处理
+                
+                console.log('语音按钮松开，停止录音');
+                voiceButton.classList.remove('recording'); // 移除录音状态类
+                isRecording = false;
+                
+                // 重置透明度
+                resetOpacity();
+                
+                // 调用asr/main.js中的stop方法
+                if (asrIframe && asrIframe.contentWindow) {
+                    try {
+                        asrIframe.contentWindow.stop();
+                        console.log('成功调用stop()方法');
+                    } catch (e) {
+                        console.error('调用stop()方法失败:', e);
+                    }
+                }
+            }
+            
+            // 注册鼠标/触摸事件
+            // 鼠标事件
+            voiceButton.addEventListener('mousedown', handleButtonDown);
+            voiceButton.addEventListener('mouseup', handleButtonUp);
+            voiceButton.addEventListener('mouseleave', handleButtonUp); // 鼠标移出按钮区域也停止录音
+            
+            // 触摸事件（移动设备）
+            voiceButton.addEventListener('touchstart', handleButtonDown);
+            voiceButton.addEventListener('touchend', handleButtonUp);
+            voiceButton.addEventListener('touchcancel', handleButtonUp);
+            
+            // 标签页切换监听，在语音识别标签页时调整按钮位置
+            const tabButtons = document.querySelectorAll('.tab-button');
+            
+            // 初始化页面时设置当前活动标签页的类
+            const activeTabButton = document.querySelector('.tab-button.active');
+            if (activeTabButton) {
+                const tabId = activeTabButton.getAttribute('data-tab');
+                document.body.classList.add(`${tabId}-active`);
+            } else {
+                // 默认设置主页标签为活动状态
+                document.body.classList.add('tab-main-active');
+            }
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    // 移除所有标签页相关的类
+                    document.body.classList.remove('tab-main-active', 'tab-appearance-active', 'tab-position-active', 'tab-recognition-active');
+                    
+                    // 添加当前标签页的类
+                    document.body.classList.add(`${tabId}-active`);
+                    
+                    // 重置按钮透明度
+                    resetOpacity();
+                });
+            });
+            
+            // 在页面上任何点击都重置透明度
+            document.addEventListener('click', function() {
+                resetOpacity();
+            });
+            
+            // 在页面上任何触摸都重置透明度
+            document.addEventListener('touchstart', function() {
+                resetOpacity();
+            });
         });
     </script>
 </body>

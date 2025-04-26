@@ -9,6 +9,9 @@
 var wsconnecter = new WebSocketConnectMethod({msgHandle:getJsonMessage,stateHandle:getConnState});
 var audioBlob;
 
+// 添加sessionId支持
+var currentSessionId = null;
+
 // 录音; 定义录音对象,wav格式
 var rec = Recorder({
 	type:"pcm",
@@ -43,18 +46,171 @@ window.resumeASRRecording = function() {
     }
 };
 
+// 暴露给外部调用的方法集合
+window.ASRBridge = {
+    // 初始化ASR服务和建立WebSocket连接
+    init: function(sessionId, serverUrl) {
+        console.log(`初始化ASR服务: sessionId=${sessionId}`);
+        
+        // 存储sessionId
+        currentSessionId = sessionId;
+        
+        // 如果提供了服务器URL，则设置
+        if (serverUrl) {
+            document.getElementById('wssip').value = serverUrl;
+        }
+        
+        return { 
+            success: true, 
+            message: '初始化成功', 
+            sessionId: currentSessionId 
+        };
+    },
+    
+    // 开始录音识别
+    start: function() {
+        console.log('外部调用: 开始语音识别');
+        if (!currentSessionId) {
+            return { success: false, message: '未初始化SessionID' };
+        }
+        
+        start();
+        return { success: true, message: '开始识别' };
+    },
+    
+    // 停止录音识别
+    stop: function() {
+        console.log('外部调用: 停止语音识别');
+        clear();
+        return { success: true, message: '停止识别' };
+    },
+    
+    // 暂停录音
+    pause: function() {
+        window.pauseASRRecording();
+        return { success: true, message: '暂停识别' };
+    },
+    
+    // 恢复录音
+    resume: function() {
+        window.resumeASRRecording();
+        return { success: true, message: '恢复识别' };
+    },
+    
+    // 获取当前SessionID
+    getSessionId: function() {
+        return currentSessionId;
+    },
+    
+    // 获取当前识别结果
+    getResult: function() {
+        const resultArea = document.getElementById('varArea');
+        return resultArea ? resultArea.value : '';
+    },
+    
+    // 设置热词
+    setHotwords: function(hotwords) {
+        if (typeof hotwords === 'string') {
+            document.getElementById('varHot').value = hotwords;
+            return { success: true, message: '设置热词成功' };
+        }
+        return { success: false, message: '热词格式错误' };
+    },
+    
+    // 清空识别结果
+    clearResult: function() {
+        document.getElementById('varArea').value = '';
+        return { success: true, message: '清空结果成功' };
+    }
+};
+
 // 添加消息监听器，处理来自父窗口的控制命令
 window.addEventListener('message', function(event) {
     // 可以根据需要验证消息来源
     // if (event.origin !== expectedOrigin) return;
     
-    if (event.data && event.data.type === 'asr_control') {
-        console.log("收到控制命令:", event.data.action);
+    const data = event.data;
+    
+    if (!data || typeof data !== 'object') return;
+    
+    // 处理ASR控制命令
+    if (data.type === 'asr_control') {
+        console.log("收到控制命令:", data.action);
         
-        if (event.data.action === 'pause') {
-            window.pauseASRRecording();
-        } else if (event.data.action === 'resume') {
-            window.resumeASRRecording();
+        let response = { type: 'asr_response', success: false, message: '未知命令' };
+        
+        switch (data.action) {
+            case 'init':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'init',
+                    result: window.ASRBridge.init(data.sessionId, data.serverUrl)
+                };
+                break;
+                
+            case 'start':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'start',
+                    result: window.ASRBridge.start()
+                };
+                break;
+                
+            case 'stop':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'stop',
+                    result: window.ASRBridge.stop()
+                };
+                break;
+                
+            case 'pause':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'pause',
+                    result: window.ASRBridge.pause()
+                };
+                break;
+                
+            case 'resume':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'resume',
+                    result: window.ASRBridge.resume()
+                };
+                break;
+                
+            case 'get_result':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'get_result',
+                    result: { 
+                        success: true, 
+                        text: window.ASRBridge.getResult() 
+                    }
+                };
+                break;
+                
+            case 'clear_result':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'clear_result',
+                    result: window.ASRBridge.clearResult()
+                };
+                break;
+                
+            case 'set_hotwords':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'set_hotwords',
+                    result: window.ASRBridge.setHotwords(data.hotwords)
+                };
+                break;
+        }
+        
+        // 发送响应给父窗口
+        if (event.source) {
+            event.source.postMessage(response, '*');
         }
     }
 });
@@ -67,6 +223,17 @@ var audioContext = null;
 var audioAnalyser = null;
 var audioDataArray = null;
 var isAudioMonitoring = false;
+
+// 当识别结果更新时发送给父窗口
+function notifyResultUpdate(result) {
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+            type: 'asr_result',
+            sessionId: currentSessionId,
+            result: result
+        }, '*');
+    }
+}
 
 // 修改音量阈值的函数
 function updateVolumeThreshold(newThreshold) {
@@ -100,39 +267,84 @@ function loadVolumeThreshold() {
     }
 }
 
-// 初始化音量相关控件
+// 加载保存的设置
+function loadSavedSettings() {
+    // 检查本地存储中是否有保存的设置
+    // 1. 检查音量阈值设置
+    const savedThreshold = localStorage.getItem('volume-threshold');
+    if (savedThreshold !== null) {
+        // 根据阈值设置开关状态
+        const thresholdValue = parseInt(savedThreshold);
+        audioVolumeThreshold = thresholdValue; // 设置全局阈值变量
+        
+        // 阈值为1时开关打开，否则关闭
+        const isToggleOn = thresholdValue === 1;
+        const thresholdToggle = document.getElementById('speaker-detection-toggle');
+        const thresholdSlider = document.getElementById('threshold-slider');
+        const thresholdDisplay = document.getElementById('threshold-value-display');
+        
+        if (thresholdToggle) thresholdToggle.checked = isToggleOn;
+        if (thresholdSlider) thresholdSlider.value = thresholdValue;
+        if (thresholdDisplay) thresholdDisplay.textContent = thresholdValue;
+        
+        console.log("已从存储加载音量阈值设置:", thresholdValue, isToggleOn ? "开启" : "关闭");
+    } else {
+        // 默认设置
+        audioVolumeThreshold = 1; // 默认开启
+        console.log("使用默认音量阈值设置: 1 (开启)");
+    }
+
+    // 可以在这里添加其他设置的加载
+}
+
+// 初始化音量控制
 function initVolumeControls() {
-    // 加载保存的阈值设置
-    loadVolumeThreshold();
-    
-    // 为滑块添加事件监听器
+    // 替换音量滑块逻辑为开关逻辑
+    const thresholdToggle = document.getElementById('speaker-detection-toggle');
     const thresholdSlider = document.getElementById('threshold-slider');
-    if (thresholdSlider) {
-        thresholdSlider.addEventListener('input', function() {
-            const newValue = parseInt(this.value, 10);
-            updateVolumeThreshold(newValue);
-            const thresholdDisplay = document.getElementById('threshold-value-display');
-            if (thresholdDisplay) {
-                thresholdDisplay.textContent = newValue;
-            }
-        });
-    }
+    const thresholdDisplay = document.getElementById('threshold-value-display');
     
-    // 为手动暂停/恢复按钮添加事件监听器
-    const pauseButton = document.getElementById('manual-pause-button');
-    if (pauseButton) {
-        pauseButton.addEventListener('click', function() {
-            if (isRecordingPaused) {
-                window.resumeASRRecording();
-                this.textContent = '暂停识别';
-                this.style.background = '#ff9f1c';
-            } else {
-                window.pauseASRRecording();
-                this.textContent = '恢复识别';
-                this.style.background = '#2ec4b6';
-            }
-        });
+    // 设置开关事件监听
+    thresholdToggle.addEventListener('change', function() {
+        // 根据开关状态设置阈值
+        const thresholdValue = this.checked ? 1 : 100;
+        thresholdSlider.value = thresholdValue;
+        thresholdDisplay.textContent = thresholdValue;
+        
+        // 保存设置到本地存储
+        localStorage.setItem('volume-threshold', thresholdValue);
+        
+        // 更新实时音量监测阈值
+        if (rec && rec.audioContext) {
+            audioVolumeThreshold = thresholdValue;
+            console.log(`音量阈值已更新为: ${audioVolumeThreshold}`);
+        }
+    });
+    
+    // 初始化开关状态
+    if (thresholdToggle.checked) {
+        audioVolumeThreshold = 1;
+    } else {
+        audioVolumeThreshold = 100;
     }
+    thresholdDisplay.textContent = audioVolumeThreshold;
+    thresholdSlider.value = audioVolumeThreshold;
+    
+    // 保持与滑块控件的兼容性，但隐藏了滑块
+    thresholdSlider.addEventListener('input', function() {
+        const value = parseInt(this.value);
+        thresholdDisplay.textContent = value;
+        audioVolumeThreshold = value;
+        
+        // 根据滑块值更新开关状态
+        thresholdToggle.checked = value === 1;
+        
+        // 保存设置到本地存储
+        localStorage.setItem('volume-threshold', value);
+    });
+
+    // 初始化手动暂停/恢复按钮
+    // ... existing code ...
 }
 
 // 开始监测音频音量
@@ -278,36 +490,22 @@ function createLocalVolumeIndicator() {
     }
 }
  
-var sampleBuf=new Int16Array();
+var sampleBuf = new Int16Array();
 // 定义按钮响应事件
-var btnStart = document.getElementById('btnStart');
-btnStart.onclick = record;
-var btnStop = document.getElementById('btnStop');
-btnStop.onclick = stop;
-btnStop.disabled = true;
-btnStart.disabled = true;
- 
-btnConnect= document.getElementById('btnConnect');
-btnConnect.onclick = start;
+var btnStart;
+var btnStop;
+var btnConnect;
+var wsslink;
+var rec_text = "";  // for online rec asr result
+var offline_text = ""; // for offline rec asr result
+var info_div;
+var upfile;
 
-var awsslink= document.getElementById('wsslink');
-
- 
-var rec_text="";  // for online rec asr result
-var offline_text=""; // for offline rec asr result
-var info_div = document.getElementById('info_div');
-
-var upfile = document.getElementById('upfile');
-
- 
-
-var isfilemode=false;  // if it is in file mode
-var file_ext="";
-var file_sample_rate=16000; //for wav file sample rate
+var isfilemode = false;  // if it is in file mode
+var file_ext = "";
+var file_sample_rate = 16000; //for wav file sample rate
 var file_data_array;  // array to save file data
- 
-var totalsend=0;
-
+var totalsend = 0;
 
 // var now_ipaddress=window.location.href;
 // now_ipaddress=now_ipaddress.replace("https://","wss://");
@@ -315,27 +513,26 @@ var totalsend=0;
 // var localport=window.location.port;
 // now_ipaddress=now_ipaddress.replace(localport,"10095");
 // document.getElementById('wssip').value=now_ipaddress;
-addresschange();
+
 function addresschange()
 {   
-	
+    // 确保wsslink已经定义
+    if (!wsslink) {
+        wsslink = document.getElementById('wsslink');
+        if (!wsslink) {
+            console.error("找不到wsslink元素");
+            return;
+        }
+    }
+    
     var Uri = document.getElementById('wssip').value; 
-	document.getElementById('info_wslink').innerHTML="点此处手工授权（IOS手机）";
-	Uri=Uri.replace(/wss/g,"https");
-	console.log("addresschange uri=",Uri);
-	
-	awsslink.onclick=function(){
-		window.open(Uri, '_blank');
-		}
-	
-}
-
-upfile.onclick=function()
-{
-		btnStart.disabled = true;
-		btnStop.disabled = true;
-		btnConnect.disabled=false;
-	
+    document.getElementById('info_wslink').innerHTML="点此处手工授权（IOS手机）";
+    Uri=Uri.replace(/wss/g,"https");
+    console.log("addresschange uri=",Uri);
+    
+    wsslink.onclick=function(){
+        window.open(Uri, '_blank');
+    }
 }
 
 // from https://github.com/xiangyuecn/Recorder/tree/master
@@ -395,51 +592,49 @@ var readWavInfo=function(bytes){
 	return null;
 };
 
-upfile.onchange = function () {
-　　　　　　var len = this.files.length;  
-            for(let i = 0; i < len; i++) {
-
-                let fileAudio = new FileReader();
-                fileAudio.readAsArrayBuffer(this.files[i]);  
+// 设置upfile的onchange处理函数
+function setupUpfileHandlers() {
+    if (!upfile) {
+        console.error("upfile元素未定义");
+        return;
+    }
+    
+    upfile.onchange = function () {
+        var len = this.files.length;  
+        for(let i = 0; i < len; i++) {
+            let fileAudio = new FileReader();
+            fileAudio.readAsArrayBuffer(this.files[i]);  
  
-				file_ext=this.files[i].name.split('.').pop().toLowerCase();
-                var audioblob;
-                fileAudio.onload = function() {
+            file_ext = this.files[i].name.split('.').pop().toLowerCase();
+            var audioblob;
+            fileAudio.onload = function() {
                 audioblob = fileAudio.result;
- 
-				 
-				 file_data_array=audioblob;
- 
-                  
-                 info_div.innerHTML='请点击连接进行识别';
- 
-                }
-
-　　　　　　　　　　fileAudio.onerror = function(e) {
-　　　　　　　　　　　　console.log('error' + e);
-　　　　　　　　　　}
+                file_data_array = audioblob;
+                if (info_div) info_div.innerHTML = '请点击连接进行识别';
             }
-			// for wav file, we  get the sample rate
-			if(file_ext=="wav")
-            for(let i = 0; i < len; i++) {
 
+            fileAudio.onerror = function(e) {
+                console.log('error' + e);
+            }
+        }
+        
+        // for wav file, we get the sample rate
+        if(file_ext == "wav") {
+            for(let i = 0; i < len; i++) {
                 let fileAudio = new FileReader();
                 fileAudio.readAsArrayBuffer(this.files[i]);  
                 fileAudio.onload = function() {
-                audioblob = new Uint8Array(fileAudio.result);
+                    audioblob = new Uint8Array(fileAudio.result);
  
-				// for wav file, we can get the sample rate
-				var info=readWavInfo(audioblob);
-				   console.log(info);
-				   file_sample_rate=info.sampleRate;
-	 
- 
+                    // for wav file, we can get the sample rate
+                    var info = readWavInfo(audioblob);
+                    console.log(info);
+                    if (info) file_sample_rate = info.sampleRate;
                 }
-
-　　　　　　 
             }
- 
         }
+    };
+}
 
 function play_file()
 {
@@ -605,7 +800,7 @@ function handleWithTimestamp(tmptext,tmptime)
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
 
 async function is_speaking() {
-	const response = await fetch('http://192.168.3.100:8010/is_speaking', {
+	const response = await fetch('http://192.168.3.100:8018/is_speaking', {
 		body: JSON.stringify({
 			sessionid: 0,
 		}),
@@ -631,7 +826,7 @@ async function waitSpeakingEnd() {
         // 等待数字人开始讲话，最长等待10秒
         for(let i = 0; i < maxWaitTime; i++) {
             try {
-                const response = await fetch('http://192.168.3.100:8010/is_speaking', {
+                const response = await fetch('http://192.168.3.100:8018/is_speaking', {
                     body: JSON.stringify({
                         sessionid: 0,
                     }),
@@ -682,7 +877,7 @@ async function waitSpeakingEnd() {
         
         while(true) {
             try {
-                const response = await fetch('http://192.168.3.100:8010/is_speaking', {
+                const response = await fetch('http://192.168.3.100:8018/is_speaking', {
                     body: JSON.stringify({
                         sessionid: 0,
                     }),
@@ -767,12 +962,12 @@ function getJsonMessage( jsonMsg ) {
 
         onASRResult(rectxt.replace(/ +/g,""));
 
-		fetch('http://192.168.3.100:8010/human', {
+		fetch('http://192.168.3.100:8018/human', {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',
                 interrupt: false,
-                sessionid: 0, // 默认会话ID，如果需要可以从页面获取
+                sessionid: parseInt(window.parent.document.getElementById('sessionid').value), // 默认会话ID，如果需要可以从页面获取
             }),
             headers: {
                 'Content-Type': 'application/json'
@@ -827,6 +1022,16 @@ function getJsonMessage( jsonMsg ) {
 
 // 连接状态响应
 function getConnState(connState) {
+    // 确保DOM元素已初始化
+    if (!info_div) {
+        info_div = document.getElementById('info_div');
+        if (!info_div) return; // 如果还不存在，直接返回
+    }
+    
+    if (!btnStart) btnStart = document.getElementById('btnStart');
+    if (!btnStop) btnStop = document.getElementById('btnStop');
+    if (!btnConnect) btnConnect = document.getElementById('btnConnect');
+    
     if (connState === 0) { //on open
         info_div.innerHTML='<span style="color:#2ec4b6">✓ 连接成功！语音识别已启动，系统会自动暂停/恢复识别</span>';
         
@@ -834,9 +1039,9 @@ function getConnState(connState) {
             info_div.innerHTML='<span style="color:#4361ee">🔄 请耐心等待，大文件识别需要较长时间...</span>';
 			start_file_send();
         } else {
-			btnStart.disabled = false;
-			btnStop.disabled = true;
-            btnConnect.disabled = true;
+            if (btnStart) btnStart.disabled = false;
+			if (btnStop) btnStop.disabled = true;
+            if (btnConnect) btnConnect.disabled = true;
             
             // 创建本地音量指示器与控制器
             createLocalVolumeIndicator();
@@ -848,18 +1053,32 @@ function getConnState(connState) {
             }, 1000);
         }
     } else if (connState === 1) {
-		//stop();
+		stop();
     } else if (connState === 2) {
 		stop();
         console.log('connecttion error');
-		 
-        alert("连接地址" + document.getElementById('wssip').value + "失败，请检查asr地址和端口。或试试界面上手动授权，再连接。");
-		btnStart.disabled = true;
-		btnStop.disabled = true;
-        btnConnect.disabled = false;
         
-        info_div.innerHTML='<span style="color:#f72585">❌ 连接失败，请点击连接按钮重试</span>';
-        stopAudioMonitoring(); // 停止音频监测
+        if (info_div) {
+            info_div.innerHTML='<span style="color:#f72585">❌ 连接失败，请点击连接按钮重试</span>';
+        }
+        
+        // 使用setTimeout确保弹窗不会导致UI线程阻塞
+        setTimeout(function() {
+            // 检查是否在iframe中，如果是，可能不需要弹窗
+            if (window.parent !== window) {
+                console.error("连接地址" + document.getElementById('wssip').value + "失败，请检查ASR地址和端口");
+            } else {
+                alert("连接地址" + document.getElementById('wssip').value + "失败，请检查asr地址和端口。或试试界面上手动授权，再连接。");
+            }
+        }, 100);
+        
+        // 更新按钮状态
+        if (btnStart) btnStart.disabled = true;
+		if (btnStop) btnStop.disabled = true;
+        if (btnConnect) btnConnect.disabled = false;
+        
+        // 停止音频监测
+        stopAudioMonitoring();
     }
 }
 
@@ -893,49 +1112,55 @@ function record() {
     rec.open(function() {
         rec.start();
         console.log("开始录音");
-		btnStart.disabled = true;
+        btnStart.disabled = true;
         btnStop.disabled = false;
         btnConnect.disabled = true;
         info_div.innerHTML = '<span style="color:#2ec4b6">✓ 录音已开始，请说话...</span>';
     });
 }
 
-// 修改stop函数，停止音频监测
-function stop() {
+// 确保startly函数全局可访问
+window.startly = function() {
+    start();
+    record();
+};
+
+// 确保stop函数全局可访问
+window.stop = function() {
     var chunk_size = new Array(5, 10, 5);
-		var request = {
-			"chunk_size": chunk_size,
+    var request = {
+        "chunk_size": chunk_size,
         "wav_name": "h5",
         "is_speaking": false,
         "chunk_interval": 10,
         "mode": getAsrMode(),
-		};
-		console.log(request);
+    };
+    console.log(request);
     
     if(sampleBuf.length > 0) {
-		wsconnecter.wsSend(sampleBuf);
+        wsconnecter.wsSend(sampleBuf);
         console.log("发送数据长度: " + sampleBuf.length);
         sampleBuf = new Int16Array();
-		}
+    }
  
     wsconnecter.wsSend(JSON.stringify(request));
  
-	// 控件状态更新
-	isRec = false;
+    // 控件状态更新
+    isRec = false;
     info_div.innerHTML='<span style="color:#4361ee">🔄 正在处理识别结果，请稍候...</span>';
 
     // 停止音频监测
     stopAudioMonitoring();
 
     if(isfilemode == false) {
-	    btnStop.disabled = true;
-		btnStart.disabled = true;
+        btnStop.disabled = true;
+        btnStart.disabled = true;
         btnConnect.disabled = true;
         
-		//wait 3s for asr result
+        //wait 3s for asr result
         setTimeout(function() {
             console.log("关闭WebSocket连接");
-		wsconnecter.wsStop();
+            wsconnecter.wsStop();
             btnConnect.disabled = false;
             info_div.innerHTML='<span style="color:#4361ee">ℹ️ 识别已停止，点击"连接"重新开始</span>';
         }, 3000);
@@ -946,7 +1171,7 @@ function stop() {
                 data = {sampleRate: 16000, bitRate: 16, blob: blob},
                 function(theblob, duration) {
                     console.log("WAV音频:", theblob);
-		var audio_record = document.getElementById('audio_record');
+                    var audio_record = document.getElementById('audio_record');
                     audio_record.src = (window.URL || webkitURL).createObjectURL(theblob);
                     audio_record.controls = true;
                 },
@@ -957,8 +1182,8 @@ function stop() {
         }, function(errMsg) {
             console.log("录音停止错误: " + errMsg);
         });
-	}
-}
+    }
+};
 
 function getUseITN() {
 	var obj = document.getElementsByName("use_itn");
@@ -1151,27 +1376,71 @@ function addChatMessage(message, position) {
 // 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
 // 这里只是示例，需要根据实际情况修改
 function onASRResult(result) {
-    addChatMessage('' + result, 'right');
+    addChatMessage('' + result, 'left');
 }
 
 // 页面初始化
 window.onload = function() {
+    // 初始化DOM元素引用
+    info_div = document.getElementById('info_div');
+    btnStart = document.getElementById('btnStart');
+    btnStop = document.getElementById('btnStop');
+    btnConnect = document.getElementById('btnConnect');
+    wsslink = document.getElementById('wsslink');
+    upfile = document.getElementById('upfile');
+    
     // 加载保存的设置
-    // loadSettings();
+    loadSavedSettings();
     
     // 初始化音量控制
     initVolumeControls();
     
-    // document.addEventListener('keydown', (e) => {
-    //     if (e.code === 'Space') {
-    //         handleSpaceKey(e);
-    //     }
-    // });
-    //
-    // $('#btnConnect').on('click', startASR);
-    // $('#selectModels').on('change', setDefaultValuesForModel);
-    // $('#rtAddHotWord').on('click', addHotWord);
-    // $("#rtHotWordDelete").on('click', deleteHotWord);
+    // 添加事件监听器
+    if (btnStart) btnStart.onclick = record;
+    if (btnStop) {
+        btnStop.onclick = stop;
+        btnStop.disabled = true;
+    }
+    if (btnStart) btnStart.disabled = true;
+    if (btnConnect) btnConnect.onclick = start;
     
-    // ... existing code ...
+    if (upfile) {
+        upfile.onclick = function() {
+            if (btnStart) btnStart.disabled = true;
+            if (btnStop) btnStop.disabled = true;
+            if (btnConnect) btnConnect.disabled = false;
+        };
+        
+        // 初始化upfile的onchange事件处理
+        setupUpfileHandlers();
+    }
+    
+    // 设置地址变更处理
+    addresschange();
+    
+    // 加载其他配置
+    const speakerToggle = document.getElementById('speaker-detection-toggle');
+    if (speakerToggle) {
+        speakerToggle.addEventListener('change', function() {
+            // 根据开关状态设置阈值
+            const thresholdValue = this.checked ? 1 : 100;
+            const thresholdSlider = document.getElementById('threshold-slider');
+            const thresholdValueDisplay = document.getElementById('threshold-value-display');
+            
+            if (thresholdSlider) thresholdSlider.value = thresholdValue;
+            if (thresholdValueDisplay) thresholdValueDisplay.textContent = thresholdValue;
+            
+            // 更新实时音量监测阈值
+            audioVolumeThreshold = thresholdValue;
+            
+            // 保存设置
+            localStorage.setItem('volume-threshold', thresholdValue);
+            
+            console.log(`扬声器检测已${this.checked ? '开启' : '关闭'}，阈值设为：${thresholdValue}`);
+        });
+    }
+    
+    console.log("ASR页面初始化完成");
 };
+
+

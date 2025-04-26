@@ -35,6 +35,75 @@ let isRatioLocked = false;
 let videoRatioWidth = null;
 let videoRatioHeight = null;
 
+
+let ws = null;
+let isWebSocketConnected = false;
+let currentSystemMessageId = null;
+
+// ASR iframe初始化和通信相关变量
+let asrIframe = null;
+let asrIframeReady = false;
+let asrSessionId = null;
+
+// Function to establish WebSocket connection
+function connectWebSocket(sessionid) {
+    console.log(`开始尝试建立 WebSocket 连接，sessionid: ${sessionid}`);
+
+    // Close existing connection if any
+    if (ws) {
+        console.log('检测到已有 WebSocket 连接，正在关闭旧连接...');
+        ws.close();
+        console.log('旧的 WebSocket 连接已关闭');
+    }
+
+    // Create a new WebSocket connection
+    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `ws://192.168.3.100:8018/ws?sessionid=${sessionid}`;
+    console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = function () {
+        console.log('WebSocket 连接已成功建立');
+        isWebSocketConnected = true;
+        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
+    };
+
+    ws.onmessage = function (event) {
+        console.log('接收到 WebSocket 消息');
+        if (event.data) {
+            console.log('消息内容不为空，具体内容如下:');
+            console.log("event.data", event.data);
+        } else {
+            console.log('接收到的消息内容为空');
+        }
+        // 添加消息到聊天窗口，带打字机效果
+        addChatMessage(event.data, 'left');
+    };
+
+    ws.onclose = function (event) {
+        console.log('WebSocket 连接已关闭');
+        isWebSocketConnected = false;
+        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
+        console.log(`关闭代码: ${event.code}, 关闭原因: ${event.reason}`);
+
+        // Try to reconnect after 5 seconds
+        console.log('将在 5 秒后尝试重新连接...');
+        setTimeout(function () {
+            if (!isWebSocketConnected) {
+                console.log('仍然处于未连接状态，开始重新连接...');
+                connectWebSocket(sessionid);
+            } else {
+                console.log('在等待期间已重新连接，无需再次尝试');
+            }
+        }, 5000);
+    };
+
+    ws.onerror = function (error) {
+        console.error('WebSocket 发生错误');
+        console.error('错误详情:', error);
+    };
+}
+
 function negotiate() {
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -57,7 +126,7 @@ function negotiate() {
         });
     }).then(() => {
         var offer = pc.localDescription;
-        return fetch('http://192.168.3.100:8010/offer', {
+        return fetch('http://192.168.3.100:8018/offer', {
             body: JSON.stringify({
                 sdp: offer.sdp,
                 type: offer.type,
@@ -70,7 +139,12 @@ function negotiate() {
     }).then((response) => {
         return response.json();
     }).then((answer) => {
-        document.getElementById('sessionid').value = answer.sessionid;
+        const sessionId = answer.sessionid;
+        document.getElementById('sessionid').value = sessionId;
+        
+        // 使用返回的会话ID初始化ASR iframe
+        initializeASRIframe(sessionId);
+        
         return pc.setRemoteDescription(answer);
     }).catch((e) => {
         alert(e);
@@ -98,6 +172,9 @@ function start() {
     // 获取用户输入的宽度和高度
     // customWidth = parseInt(document.getElementById('width-input').value);
     // customHeight = parseInt(document.getElementById('height-input').value);
+
+    const sessionid = parseInt(document.getElementById('sessionid').value);
+    connectWebSocket(sessionid);
 
     // connect audio / video
     pc.addEventListener('track', (evt) => {
@@ -226,9 +303,15 @@ function start() {
                 
                 // 将处理后的流设置为音频元素的源
                 audioElement.srcObject = destination.stream;
+                
+                // 新增：为延迟后的音频流添加ASR处理
+                setupAudioRecognition(destination.stream);
             } else {
                 // 没有延迟，直接设置音频源
                 audioElement.srcObject = audioStream;
+                
+                // 新增：为原始音频流添加ASR处理
+                setupAudioRecognition(audioStream);
             }
         }
     });
@@ -855,11 +938,12 @@ const echoForm = document.getElementById('echo-form');
 echoForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = document.getElementById('message').value;
-    addChatMessage('' + message, 'right');
+    addChatMessage('' + message, 'left');
     console.log('获取的消息:', message);
+    console.log('sessionid: ',document.getElementById('sessionid').value);
     // console.log('消息中是否包含换行符:', message.includes('\n'));
     // 原有的表单提交逻辑
-    fetch('http://192.168.3.100:8010/human', {
+    fetch('http://192.168.3.100:8018/human', {
         body: JSON.stringify({
             text: message,
             type: 'chat',
@@ -878,6 +962,8 @@ echoForm.addEventListener('submit', function(e) {
 // setInterval(() => {
 //     onASRResult('这是一个模拟的语音识别结果');
 // }, 5000);
+
+            
 
 /**
  * 测试添加各种媒体消息的函数
@@ -998,4 +1084,193 @@ function onASRResult(result) {
     // 将识别结果作为左侧消息显示（用户说的话）
     addChatMessage('' + result, 'left');
 }
+
+// 新增：处理数字人音频数据并传递给ASR识别的函数
+function setupAudioRecognition(audioStream) {
+    try {
+        console.log("设置数字人音频识别功能");
+        
+        // 创建音频上下文
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // 创建源节点
+        const source = audioContext.createMediaStreamSource(audioStream);
+        
+        // 创建分析器节点用于实时获取音频数据
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        
+        // 创建脚本处理器节点以处理音频数据
+        const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        
+        // 连接节点
+        source.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(audioContext.destination);
+        
+        // 通过ScriptProcessor获取音频数据并发送到ASR iframe
+        scriptProcessor.onaudioprocess = function(audioProcessingEvent) {
+            const inputBuffer = audioProcessingEvent.inputBuffer;
+            const inputData = inputBuffer.getChannelData(0);
+            
+            // 转换为Int16Array以便ASR处理
+            const int16Data = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+                // 将[-1,1]的float值转换为[-32768,32767]的int16值
+                int16Data[i] = Math.max(-32768, Math.min(32767, Math.floor(inputData[i] * 32767)));
+            }
+            
+            // 获取ASR iframe并发送数据
+            const asrIframe = document.querySelector('#asr-iframe');
+            if (asrIframe && asrIframe.contentWindow) {
+                asrIframe.contentWindow.postMessage({
+                    type: 'digital_human_audio',
+                    audio: int16Data
+                }, '*');
+            }
+        };
+        
+        console.log("数字人音频识别设置完成");
+    } catch (e) {
+        console.error("设置数字人音频识别失败:", e);
+    }
+}
+
+// 新增：监听来自ASR iframe的消息
+window.addEventListener('message', function(event) {
+    // 根据需要验证消息来源
+    // if (event.origin !== expectedOrigin) return;
+    
+    if (event.data && event.data.type === 'digital_human_asr_ready') {
+        console.log("ASR iframe准备就绪，可开始传输数字人音频数据");
+    } else if (event.data && event.data.type === 'asr_ready') {
+        console.log("ASR iframe已准备好接收音量数据");
+    } else if (event.data && event.data.type === 'asr_result') {
+        // 处理ASR结果
+        if (event.data.text) {
+            onASRResult(event.data.text);
+        }
+    }
+});
+
+/**
+ * 初始化ASR iframe并建立通信
+ * @param {string} sessionId - 当前会话ID
+ */
+function initializeASRIframe(sessionId) {
+    console.log(`初始化ASR iframe，会话ID: ${sessionId}`);
+    
+    // 设置会话ID
+    asrSessionId = sessionId;
+    
+    // 获取ASR iframe
+    asrIframe = document.getElementById('asr-iframe');
+    if (!asrIframe) {
+        console.error('找不到ASR iframe元素');
+        return;
+    }
+    
+    // 设置iframe事件监听
+    window.addEventListener('message', handleASRIframeMessage);
+    
+    // 检查iframe是否已准备好
+    if (asrIframeReady) {
+        sendSessionIdToASRIframe(sessionId);
+    } else {
+        console.log('ASR iframe尚未准备好，等待准备就绪消息');
+    }
+}
+
+/**
+ * 处理来自ASR iframe的消息
+ * @param {MessageEvent} event - 消息事件
+ */
+function handleASRIframeMessage(event) {
+    // 可以根据需要验证消息来源
+    // if (event.origin !== expectedOrigin) return;
+    
+    if (!event.data || !event.data.type) return;
+    
+    switch (event.data.type) {
+        case 'asr_iframe_ready':
+            console.log('ASR iframe已准备就绪');
+            asrIframeReady = true;
+            
+            // 如果已有会话ID，发送给iframe
+            if (asrSessionId) {
+                sendSessionIdToASRIframe(asrSessionId);
+            }
+            break;
+            
+        case 'asr_result':
+            // 处理ASR结果
+            console.log('收到ASR结果:', event.data.text);
+            if (event.data.text) {
+                onASRResult(event.data.text);
+            }
+            break;
+            
+        case 'asr_ws_connected':
+            console.log(`ASR WebSocket已连接，sessionId: ${event.data.sessionId}`);
+            break;
+            
+        case 'asr_ws_disconnected':
+            console.log(`ASR WebSocket已断开，sessionId: ${event.data.sessionId}, 代码: ${event.data.code}`);
+            break;
+            
+        case 'asr_ws_error':
+            console.error(`ASR WebSocket错误，sessionId: ${event.data.sessionId}, 错误: ${event.data.error}`);
+            break;
+            
+        case 'digital_human_asr_ready':
+            console.log('数字人ASR处理模块已准备就绪');
+            break;
+    }
+}
+
+/**
+ * 向ASR iframe发送会话ID
+ * @param {string} sessionId - 会话ID
+ */
+function sendSessionIdToASRIframe(sessionId) {
+    if (!asrIframe || !asrIframe.contentWindow) {
+        console.error('ASR iframe不可用，无法发送会话ID');
+        return;
+    }
+    
+    try {
+        asrIframe.contentWindow.postMessage({
+            type: 'set_session_id',
+            sessionId: sessionId
+        }, '*');
+        console.log(`已向ASR iframe发送会话ID: ${sessionId}`);
+    } catch (e) {
+        console.error('向ASR iframe发送会话ID时出错:', e);
+    }
+}
+
+/**
+ * 发送控制命令到ASR iframe
+ * @param {string} action - 控制动作，'connect'|'pause'|'resume'|'close'
+ * @param {Object} params - 附加参数
+ */
+function sendControlToASRIframe(action, params = {}) {
+    if (!asrIframe || !asrIframe.contentWindow) {
+        console.error('ASR iframe不可用，无法发送控制命令');
+        return;
+    }
+    
+    try {
+        const message = {
+            type: `asr_${action}`,
+            ...params
+        };
+        
+        asrIframe.contentWindow.postMessage(message, '*');
+        console.log(`已向ASR iframe发送控制命令: ${action}`, params);
+    } catch (e) {
+        console.error(`向ASR iframe发送${action}命令时出错:`, e);
+    }
+}
+
 

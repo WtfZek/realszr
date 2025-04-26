@@ -4,6 +4,8 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>数字人控制面板</title>
+    <!-- 添加广播服务脚本引用 -->
+    <script src="./asr/ws-bridge.js"></script>
     <style>
         :root {
             --primary-color: #4361ee;
@@ -905,6 +907,11 @@
             <polyline points="21 15 16 10 5 21"></polyline>
         </svg>
     </button>
+    
+    <!-- 打开语音识别页面按钮 -->
+    <button id="open-asr-page" style="display: none; margin: 0 10px; padding: 8px 16px; background-color: #4361ee; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        打开语音识别页面
+    </button>
 
     <!-- &lt;!&ndash; 弹窗遮罩层 &ndash;&gt;-->
     <!-- <div id="modal-overlay"></div>-->
@@ -1077,6 +1084,28 @@
                             <input type="range" id="chatOpacitySlider" min="0" max="100" value="65">
                             <input type="number" class="range-value" id="chatOpacityValue" min="0" max="100" value="65">
                         </div>
+                    </div>
+                    
+                    <!-- 添加清空历史对话选项 -->
+                    <div class="form-group" style="margin-top: 15px;">
+                        <div class="switch-container">
+                            <label class="switch">
+                                <input type="checkbox" id="clear-history-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <label for="clear-history-toggle">每次进入页面时清空历史对话</label>
+                        </div>
+                    </div>
+                    
+                    <!-- 添加手动清空历史按钮 -->
+                    <div class="form-group" style="margin-top: 15px;">
+                        <button id="clear-history-now" class="btn-warning" style="width: 100%;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            立即清空历史对话
+                        </button>
                     </div>
                 </div>
 
@@ -1614,7 +1643,7 @@
                 if (isDraggingModal && e.touches.length === 1) {
                     const touch = e.touches[0];
                     const left = touch.clientX - offsetXModal;
-                    const top = touch.clientY - offsetYModal;
+                    const top = touch.clientY - offsetYModal;  // 修正为使用offsetYModal
 
                     settingsModal.style.left = left + 'px';
                     settingsModal.style.top = top + 'px';
@@ -3913,6 +3942,390 @@
                 resetOpacity();
             });
         });
+        
     </script>
+    <script>
+        // 创建广播频道用于页面间通信
+        const chatChannel = new BroadcastChannel('chat_messages');
+        
+        // 监听来自其他页面的消息
+        chatChannel.addEventListener('message', (event) => {
+            if (event.data.type === 'chat_message') {
+                // 获取聊天消息内容
+                const chatContent = document.getElementById('chat-content');
+                if (chatContent) {
+                    // 创建聊天项
+                    const chatItem = document.createElement('div');
+                    chatItem.classList.add('chat-item');
+                    chatItem.classList.add(event.data.isSender ? 'sender' : 'receiver');
+                    chatItem.style.display = 'flex';
+                    chatItem.style.alignItems = 'start';
+                    chatItem.style.marginBottom = '10px';
+                    
+                    // 创建头像
+                    const avatar = document.createElement('img');
+                    avatar.src = './static/audio.png';
+                    avatar.style.width = '24px';
+                    avatar.style.height = '24px';
+                    avatar.style.borderRadius = '50%';
+                    avatar.style.marginRight = '10px';
+                    
+                    // 创建消息容器
+                    const messageContainer = document.createElement('div');
+                    messageContainer.style.display = 'flex';
+                    messageContainer.style.alignItems = 'end';
+                    messageContainer.style.fontSize = '12px';
+                    messageContainer.style.fontFamily = '宋体';
+                    messageContainer.style.border = '1px solid #dcdcdc';
+                    messageContainer.style.borderRadius = '8px';
+                    messageContainer.style.backgroundColor = '#ffffff';
+                    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+                    messageContainer.style.padding = '10px';
+                    messageContainer.style.maxWidth = '80%';
+                    messageContainer.textContent = event.data.message;
+                    
+                    // 根据发送方调整布局
+                    if (event.data.isSender) {
+                        chatItem.style.justifyContent = 'flex-end';
+                        avatar.style.marginLeft = '10px';
+                        avatar.style.marginRight = 0;
+                        chatItem.appendChild(messageContainer);
+                        chatItem.appendChild(avatar);
+                    } else {
+                        chatItem.style.justifyContent = 'flex-start';
+                        chatItem.appendChild(avatar);
+                        chatItem.appendChild(messageContainer);
+                    }
+                    
+                    // 添加到聊天容器
+                    chatContent.appendChild(chatItem);
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                }
+            }
+        });
+        
+        // 保存当前会话ID到localStorage
+        function saveSessionId() {
+            const sessionId = document.getElementById('sessionid').value;
+            if (sessionId) {
+                localStorage.setItem('asr_session_id', sessionId);
+                console.log('已保存会话ID:', sessionId);
+            }
+        }
+        
+        // 添加事件监听器，当会话ID变化时保存
+        document.addEventListener('DOMContentLoaded', function() {
+            const sessionIdInput = document.getElementById('sessionid');
+            if (sessionIdInput) {
+                // 初始值存储
+                saveSessionId();
+                
+                // 监听变化
+                sessionIdInput.addEventListener('change', saveSessionId);
+            }
+            
+            // 之前的动态创建按钮代码已移除，使用HTML静态按钮替代
+        });
+        
+        // 订阅聊天广播服务
+        document.addEventListener('DOMContentLoaded', function() {
+            // 订阅聊天广播服务
+            if (window.chatBroadcastService) {
+                console.log('正在订阅聊天广播服务...');
+                
+                // 订阅消息
+                window.chatBroadcastService.subscribe(function(data) {
+                    // 处理收到的消息
+                    console.log('收到广播消息:', data);
+                    
+                    // 检查消息来源，只处理远程消息或未标记来源的消息
+                    // 本地发出的消息不需要再显示一次
+                    if (data.source === 'local') {
+                        console.log('跳过本地发出的消息:', data.id);
+                        return;
+                    }
+                    
+                    // 查找聊天内容区域
+                    const chatContent = document.getElementById('chat-content');
+                    if (!chatContent) {
+                        console.error('找不到chat-content元素');
+                        return;
+                    }
+                    
+                    // 检查消息是否已存在
+                    const isCurrentMessage = document.querySelector(`[data-message-id="${data.id}"]`);
+                    if (isCurrentMessage) {
+                        console.log('消息已存在，跳过显示');
+                        return;
+                    }
+                    
+                    // 创建消息元素
+                    const chatItem = document.createElement('div');
+                    chatItem.classList.add('chat-item');
+                    chatItem.classList.add(data.position === 'right' ? 'sender' : 'receiver');
+                    chatItem.setAttribute('data-message-id', data.id);
+                    chatItem.style.display = 'flex';
+                    chatItem.style.alignItems = 'start';
+                    chatItem.style.marginBottom = '10px';
+                    
+                    // 创建头像
+                    const avatar = document.createElement('img');
+                    avatar.src = './static/audio.png';
+                    avatar.style.width = '24px';
+                    avatar.style.height = '24px';
+                    avatar.style.borderRadius = '50%';
+                    avatar.style.marginRight = '10px';
+                    
+                    // 创建消息容器
+                    const messageContainer = document.createElement('div');
+                    messageContainer.style.display = 'flex';
+                    messageContainer.style.alignItems = 'end';
+                    messageContainer.style.fontSize = '12px';
+                    messageContainer.style.fontFamily = '宋体';
+                    messageContainer.style.border = '1px solid #dcdcdc';
+                    messageContainer.style.borderRadius = '8px';
+                    messageContainer.style.backgroundColor = '#ffffff';
+                    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+                    messageContainer.style.padding = '10px';
+                    messageContainer.style.maxWidth = '80%';
+                    
+                    // 添加消息文本
+                    messageContainer.appendChild(document.createTextNode(data.message));
+                    
+                    // 根据消息位置设置样式
+                    if (data.position === 'right') {
+                        chatItem.style.justifyContent = 'flex-end';
+                        avatar.style.marginLeft = '10px';
+                        avatar.style.marginRight = 0;
+                        chatItem.appendChild(messageContainer);
+                        chatItem.appendChild(avatar);
+                    } else {
+                        chatItem.style.justifyContent = 'flex-start';
+                        chatItem.appendChild(avatar);
+                        chatItem.appendChild(messageContainer);
+                    }
+                    
+                    // 添加到聊天内容区域
+                    chatContent.appendChild(chatItem);
+                    
+                    // 滚动到底部
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                });
+                
+                // 加载已存储的消息
+                const storedMessages = window.chatBroadcastService.getStoredMessages();
+                if (storedMessages && storedMessages.length > 0) {
+                    console.log(`加载 ${storedMessages.length} 条已存储消息`);
+                    
+                    // 找到chat-content元素
+                    const chatContent = document.getElementById('chat-content');
+                    if (!chatContent) {
+                        console.error('找不到chat-content元素，无法加载历史消息');
+                        return;
+                    }
+                    
+                    // 清空现有消息
+                    chatContent.innerHTML = '';
+                    
+                    // 添加历史消息
+                    storedMessages.forEach(function(msg) {
+                        const chatItem = document.createElement('div');
+                        chatItem.classList.add('chat-item');
+                        chatItem.classList.add(msg.position === 'right' ? 'sender' : 'receiver');
+                        chatItem.setAttribute('data-message-id', msg.id);
+                        chatItem.style.display = 'flex';
+                        chatItem.style.alignItems = 'start';
+                        chatItem.style.marginBottom = '10px';
+                        
+                        const avatar = document.createElement('img');
+                        avatar.src = './static/audio.png';
+                        avatar.style.width = '24px';
+                        avatar.style.height = '24px';
+                        avatar.style.borderRadius = '50%';
+                        avatar.style.marginRight = '10px';
+                        
+                        const messageContainer = document.createElement('div');
+                        messageContainer.style.display = 'flex';
+                        messageContainer.style.alignItems = 'end';
+                        messageContainer.style.fontSize = '12px';
+                        messageContainer.style.fontFamily = '宋体';
+                        messageContainer.style.border = '1px solid #dcdcdc';
+                        messageContainer.style.borderRadius = '8px';
+                        messageContainer.style.backgroundColor = '#ffffff';
+                        messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+                        messageContainer.style.padding = '10px';
+                        messageContainer.style.maxWidth = '80%';
+                        
+                        messageContainer.appendChild(document.createTextNode(msg.message));
+                        
+                        if (msg.position === 'right') {
+                            chatItem.style.justifyContent = 'flex-end';
+                            avatar.style.marginLeft = '10px';
+                            avatar.style.marginRight = 0;
+                            chatItem.appendChild(messageContainer);
+                            chatItem.appendChild(avatar);
+                        } else {
+                            chatItem.style.justifyContent = 'flex-start';
+                            chatItem.appendChild(avatar);
+                            chatItem.appendChild(messageContainer);
+                        }
+                        
+                        chatContent.appendChild(chatItem);
+                    });
+                    
+                    // 滚动到底部
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                }
+            } else {
+                console.error('聊天广播服务不可用');
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 添加ASR响应处理器
+            const handleASRMessage = function(data) {
+                // 只处理左侧接收到的消息
+                if (data.position === 'left' && data.message && data.message.trim() !== '') {
+                    // 获取当前会话ID
+                    const sessionId = document.getElementById('sessionid') ? 
+                                      document.getElementById('sessionid').value : 0;
+                    
+                    console.log('处理ASR消息:', data.message, '会话ID:', sessionId);
+                    
+                    // 获取当前时间
+                    const now = new Date();
+                    const timeString = now.getHours().toString().padStart(2, '0') + ':' +
+                                      now.getMinutes().toString().padStart(2, '0') + ':' +
+                                      now.getSeconds().toString().padStart(2, '0');
+                    
+                    // 调用/human接口
+                    fetch('http://192.168.3.100:8018/human', {
+                        body: JSON.stringify({
+                            text: data.message,
+                            type: 'chat',
+                            interrupt: false,
+                            sessionid: parseInt(sessionId),
+                        }),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        method: 'POST'
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            console.error('后端响应错误:', response.status);
+                        } else {
+                            console.log('消息发送到后端成功 [' + timeString + ']:', data.message);
+                        }
+                        return response.json().catch(e => null);
+                    })
+                    .then(responseData => {
+                        if (responseData) console.log('后端返回数据:', responseData);
+                    })
+                    .catch(error => {
+                        console.error('请求失败:', error);
+                    });
+                }
+            };
+            
+            // 注册消息处理器
+            if (window.chatBroadcastService) {
+                window.chatBroadcastService.addMessageProcessor(handleASRMessage);
+                console.log('已注册ASR消息处理器');
+            }
+        });
+        </script>
+
+        <!-- 添加清空历史记录功能的脚本 -->
+        <script>
+        // 在页面加载完成后初始化清空历史记录功能
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('初始化清空历史记录功能');
+            
+            // 处理清空历史记录选项
+            const clearHistoryToggle = document.getElementById('clear-history-toggle');
+            if (clearHistoryToggle) {
+                // 从localStorage加载保存的设置
+                try {
+                    const savedSetting = localStorage.getItem('shouldClearHistoryOnLoad');
+                    if (savedSetting !== null) {
+                        const shouldClear = savedSetting === 'true';
+                        clearHistoryToggle.checked = shouldClear;
+                        window.shouldClearHistoryOnLoad = shouldClear;
+                    }
+                } catch (e) {
+                    console.error('加载清空历史设置失败:', e);
+                }
+                
+                // 监听变化
+                clearHistoryToggle.addEventListener('change', function() {
+                    const shouldClear = this.checked;
+                    // 调用全局函数设置
+                    if (window.setClearHistoryOnLoad) {
+                        window.setClearHistoryOnLoad(shouldClear);
+                    } else {
+                        window.shouldClearHistoryOnLoad = shouldClear;
+                        try {
+                            localStorage.setItem('shouldClearHistoryOnLoad', shouldClear);
+                        } catch (e) {
+                            console.error('保存清空历史设置失败:', e);
+                        }
+                    }
+                    
+                    console.log(`已设置页面加载时${shouldClear ? '清空' : '保留'}历史对话消息`);
+                });
+            } else {
+                console.error('找不到清空历史记录开关元素');
+            }
+            
+            // 添加立即清空历史按钮的点击事件处理
+            const clearHistoryNowBtn = document.getElementById('clear-history-now');
+            if (clearHistoryNowBtn) {
+                clearHistoryNowBtn.addEventListener('click', function() {
+                    console.log('点击清空历史按钮');
+                    if (window.chatBroadcastService && typeof window.chatBroadcastService.clearAllMessages === 'function') {
+                        // 清空历史消息
+                        window.chatBroadcastService.clearAllMessages();
+                        
+                        // 清空当前页面的聊天内容
+                        const chatContent = document.getElementById('chat-content');
+                        if (chatContent) {
+                            chatContent.innerHTML = '';
+                            console.log('已清空当前页面的聊天内容');
+                        }
+                        
+                        // 显示提示消息
+                        alert('历史对话已清空');
+                    } else {
+                        console.error('聊天广播服务不可用，无法清空历史');
+                        alert('清空失败：聊天服务不可用');
+                    }
+                });
+            } else {
+                console.error('找不到立即清空历史按钮元素');
+            }
+        });
+        </script>
+
+        <!-- 添加ASR页面按钮事件监听器 -->
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const openAsrPageBtn = document.getElementById('open-asr-page');
+            if (openAsrPageBtn) {
+                openAsrPageBtn.addEventListener('click', function() {
+                    // 获取当前会话ID
+                    const sessionId = document.getElementById('sessionid').value;
+                    
+                    // 保存到localStorage
+                    localStorage.setItem('asr_session_id', sessionId);
+                    
+                    // 打开ASR页面
+                    window.open(`/asr/index.html?sessionid=${sessionId}`, '_blank');
+                });
+            }
+        });
+        
+        // 订阅聊天广播服务
+        </script>
 </body>
 </html>

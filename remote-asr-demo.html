@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>远程语音识别控制器演示</title>
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --success-color: #34a853;
+            --warning-color: #fbbc05;
+            --error-color: #ea4335;
+            --text-color: #333333;
+            --light-text: #757575;
+            --border-color: #e0e0e0;
+            --card-bg: #ffffff;
+            --bg-color: #f5f5f5;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        h1, h2, h3 {
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--primary-color);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 16px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            padding: 10px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            background-color: var(--light-text);
+            cursor: not-allowed;
+        }
+
+        button.success {
+            background-color: var(--success-color);
+        }
+
+        button.warning {
+            background-color: var(--warning-color);
+        }
+
+        button.error {
+            background-color: var(--error-color);
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .status.connected {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .status.disconnected {
+            background-color: var(--error-color);
+            color: white;
+        }
+
+        .status.recognizing {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .logs {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .log-item {
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .log-time {
+            color: var(--light-text);
+            font-size: 12px;
+        }
+
+        .chat-history {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 10px;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: var(--radius);
+            max-width: 80%;
+        }
+
+        .user-message {
+            background-color: var(--primary-color);
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .system-message {
+            background-color: #e9e9eb;
+            align-self: flex-start;
+        }
+
+        #recognitionResult {
+            margin-top: 10px;
+            min-height: 50px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+        }
+
+        .audio-level {
+            height: 30px;
+            background-color: #f0f0f0;
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .audio-level-fill {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary-color);
+            transition: width 0.1s ease;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div>
+            <div class="card">
+                <h2>连接设置</h2>
+                <div class="form-group">
+                    <label for="targetUrl">目标URL</label>
+                    <input type="text" id="targetUrl" placeholder="请输入目标URL" value="http://localhost:8080/asr/main.html">
+                </div>
+                <div class="form-group">
+                    <label for="wsServerUrl">WebSocket服务器URL</label>
+                    <input type="text" id="wsServerUrl" placeholder="请输入WebSocket服务器URL" value="ws://localhost:8019/speechrec">
+                </div>
+                <div class="form-group">
+                    <label for="sessionId">会话ID</label>
+                    <input type="text" id="sessionId" placeholder="请输入会话ID" value="12345">
+                </div>
+                <div>
+                    <button id="connectBtn">连接</button>
+                    <button id="disconnectBtn" disabled>断开</button>
+                </div>
+                <div>
+                    <span id="connectionStatus" class="status disconnected">未连接</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>语音识别控制</h2>
+                <div>
+                    <button id="startBtn" disabled>开始录音</button>
+                    <button id="stopBtn" disabled>停止录音</button>
+                    <button id="pauseBtn" disabled>暂停</button>
+                    <button id="resumeBtn" disabled>恢复</button>
+                </div>
+                <div>
+                    <span id="recognitionStatus" class="status disconnected">未识别</span>
+                </div>
+                <div>
+                    <div class="audio-level">
+                        <div id="audioLevelFill" class="audio-level-fill"></div>
+                    </div>
+                </div>
+                <div>
+                    <h3>当前识别结果</h3>
+                    <div id="recognitionResult"></div>
+                </div>
+                <div>
+                    <button id="clearResultBtn" disabled>清空结果</button>
+                    <button id="sendToDHBtn" disabled>发送到数字人</button>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h2>聊天历史</h2>
+                <div id="chatHistory" class="chat-history"></div>
+            </div>
+
+            <div class="card">
+                <h2>高级设置</h2>
+                <div class="form-group">
+                    <label for="volumeThreshold">音量阈值 (1-100)</label>
+                    <input type="number" id="volumeThreshold" min="1" max="100" value="15">
+                </div>
+                <div class="form-group">
+                    <label for="pauseDelay">暂停延迟 (毫秒)</label>
+                    <input type="number" id="pauseDelay" min="0" value="2000">
+                </div>
+                <div class="form-group">
+                    <label for="resumeDelay">恢复延迟 (毫秒)</label>
+                    <input type="number" id="resumeDelay" min="0" value="500">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <span>自动发送到数字人</span>
+                        <div class="switch">
+                            <input type="checkbox" id="autoSendToDH">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                </div>
+                <div>
+                    <button id="applySettingsBtn">应用设置</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>日志</h2>
+                <div id="logs" class="logs"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入远程ASR控制器JS文件 -->
+    <script src="remote-asr-controller.js"></script>
+    
+    <script>
+        // 全局变量
+        let controller = null;
+        let isConnected = false;
+        let isRecognizing = false;
+        
+        // DOM元素
+        const targetUrlInput = document.getElementById('targetUrl');
+        const wsServerUrlInput = document.getElementById('wsServerUrl');
+        const sessionIdInput = document.getElementById('sessionId');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const clearResultBtn = document.getElementById('clearResultBtn');
+        const sendToDHBtn = document.getElementById('sendToDHBtn');
+        const applySettingsBtn = document.getElementById('applySettingsBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const recognitionStatus = document.getElementById('recognitionStatus');
+        const recognitionResult = document.getElementById('recognitionResult');
+        const chatHistory = document.getElementById('chatHistory');
+        const logs = document.getElementById('logs');
+        const audioLevelFill = document.getElementById('audioLevelFill');
+        const volumeThresholdInput = document.getElementById('volumeThreshold');
+        const pauseDelayInput = document.getElementById('pauseDelay');
+        const resumeDelayInput = document.getElementById('resumeDelay');
+        const autoSendToDHCheckbox = document.getElementById('autoSendToDH');
+        
+        // 添加日志
+        function addLog(message) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = 'log-item';
+            logItem.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
+            logs.appendChild(logItem);
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        // 更新按钮状态
+        function updateButtonStates() {
+            connectBtn.disabled = isConnected;
+            disconnectBtn.disabled = !isConnected;
+            startBtn.disabled = !isConnected || isRecognizing;
+            stopBtn.disabled = !isConnected || !isRecognizing;
+            pauseBtn.disabled = !isConnected || !isRecognizing;
+            resumeBtn.disabled = !isConnected || !isRecognizing;
+            clearResultBtn.disabled = !isConnected;
+            sendToDHBtn.disabled = !isConnected || !recognitionResult.textContent.trim();
+            
+            connectionStatus.textContent = isConnected ? '已连接' : '未连接';
+            connectionStatus.className = isConnected ? 'status connected' : 'status disconnected';
+            
+            recognitionStatus.textContent = isRecognizing ? '识别中' : '未识别';
+            recognitionStatus.className = isRecognizing ? 'status recognizing' : 'status disconnected';
+        }
+        
+        // 添加聊天消息
+        function addChatMessage(text, isUser = true) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'system-message'}`;
+            messageDiv.textContent = text;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
+        // 模拟音量变化
+        function simulateAudioLevel() {
+            if (isRecognizing) {
+                const randomLevel = Math.floor(Math.random() * 80) + 5;
+                audioLevelFill.style.width = `${randomLevel}%`;
+                setTimeout(simulateAudioLevel, 200);
+            } else {
+                audioLevelFill.style.width = '0%';
+            }
+        }
+        
+        // 初始化控制器
+        function initController() {
+            // 创建RemoteASRController实例
+            controller = new RemoteASRController({
+                debug: true,
+                autoInit: true,
+                onReady: () => {
+                    addLog('RemoteASRController已初始化');
+                },
+                onConnected: (data) => {
+                    isConnected = true;
+                    addLog(`已连接到远程系统，会话ID: ${data.sessionId}`);
+                    updateButtonStates();
+                },
+                onDisconnected: () => {
+                    isConnected = false;
+                    isRecognizing = false;
+                    addLog('已断开远程系统连接');
+                    updateButtonStates();
+                },
+                onRecognitionResult: (result, sessionId) => {
+                    addLog(`收到识别结果: ${result}`);
+                    recognitionResult.textContent = result;
+                    
+                    // 如果设置了自动发送到数字人
+                    if (autoSendToDHCheckbox.checked && result.trim()) {
+                        sendToDigitalHuman(result);
+                    }
+                },
+                onDigitalHumanResponse: (data) => {
+                    addLog(`收到数字人响应: ${JSON.stringify(data)}`);
+                    if (data && data.message) {
+                        addChatMessage(data.message, false);
+                    }
+                },
+                onError: (error) => {
+                    addLog(`错误: ${error}`);
+                }
+            });
+        }
+        
+        // 连接远程系统
+        function connectRemote() {
+            const targetUrl = targetUrlInput.value.trim();
+            const wsServerUrl = wsServerUrlInput.value.trim();
+            const sessionId = sessionIdInput.value.trim();
+            
+            if (!targetUrl || !sessionId) {
+                addLog('错误: 目标URL和会话ID不能为空');
+                return;
+            }
+            
+            addLog(`正在连接到 ${targetUrl}...`);
+            
+            // 更新控制器配置
+            controller.options.targetUrl = targetUrl;
+            controller.options.wsServerUrl = wsServerUrl;
+            
+            // 连接
+            controller.connect(sessionId, targetUrl)
+                .then(result => {
+                    addLog(`连接成功: ${result.message}`);
+                })
+                .catch(error => {
+                    addLog(`连接失败: ${error.message}`);
+                });
+        }
+        
+        // 断开远程系统
+        function disconnectRemote() {
+            if (!isConnected) return;
+            
+            addLog('正在断开连接...');
+            controller.disconnect()
+                .then(result => {
+                    addLog(`断开成功: ${result.message}`);
+                })
+                .catch(error => {
+                    addLog(`断开失败: ${error.message}`);
+                });
+        }
+        
+        // 开始语音识别
+        function startRecognition() {
+            if (!isConnected || isRecognizing) return;
+            
+            addLog('正在开始语音识别...');
+            controller.startRecognition()
+                .then(result => {
+                    isRecognizing = true;
+                    addLog(`开始识别成功: ${result.message}`);
+                    updateButtonStates();
+                    simulateAudioLevel();
+                })
+                .catch(error => {
+                    addLog(`开始识别失败: ${error.message}`);
+                });
+        }
+        
+        // 停止语音识别
+        function stopRecognition() {
+            if (!isConnected || !isRecognizing) return;
+            
+            addLog('正在停止语音识别...');
+            controller.stopRecognition()
+                .then(result => {
+                    isRecognizing = false;
+                    addLog(`停止识别成功: ${result.message}`);
+                    updateButtonStates();
+                })
+                .catch(error => {
+                    addLog(`停止识别失败: ${error.message}`);
+                });
+        }
+        
+        // 暂停语音识别
+        function pauseRecognition() {
+            if (!isConnected || !isRecognizing) return;
+            
+            addLog('正在暂停语音识别...');
+            controller.pauseRecognition()
+                .then(result => {
+                    addLog(`暂停识别成功: ${result.message}`);
+                })
+                .catch(error => {
+                    addLog(`暂停识别失败: ${error.message}`);
+                });
+        }
+        
+        // 恢复语音识别
+        function resumeRecognition() {
+            if (!isConnected || !isRecognizing) return;
+            
+            addLog('正在恢复语音识别...');
+            controller.resumeRecognition()
+                .then(result => {
+                    addLog(`恢复识别成功: ${result.message}`);
+                })
+                .catch(error => {
+                    addLog(`恢复识别失败: ${error.message}`);
+                });
+        }
+        
+        // 应用音频设置
+        function applyAudioSettings() {
+            if (!isConnected) return;
+            
+            const config = {
+                volumeThreshold: parseInt(volumeThresholdInput.value, 10),
+                pauseDelay: parseInt(pauseDelayInput.value, 10),
+                resumeDelay: parseInt(resumeDelayInput.value, 10)
+            };
+            
+            addLog(`正在应用音频设置: ${JSON.stringify(config)}`);
+            controller.setAudioConfig(config)
+                .then(result => {
+                    addLog(`设置成功: ${result.message}`);
+                })
+                .catch(error => {
+                    addLog(`设置失败: ${error.message}`);
+                });
+                
+            // 更新自动发送到数字人设置
+            controller.options.autoSendToDigitalHuman = autoSendToDHCheckbox.checked;
+            addLog(`自动发送到数字人: ${autoSendToDHCheckbox.checked ? '开启' : '关闭'}`);
+        }
+        
+        // 发送到数字人
+        function sendToDigitalHuman(text) {
+            if (!isConnected) return;
+            
+            const textToSend = text || recognitionResult.textContent.trim();
+            if (!textToSend) return;
+            
+            addLog(`正在发送到数字人: "${textToSend}"`);
+            addChatMessage(textToSend, true);
+            
+            controller.sendToDigitalHuman(textToSend)
+                .then(result => {
+                    addLog(`发送成功`);
+                })
+                .catch(error => {
+                    addLog(`发送失败: ${error.message}`);
+                });
+        }
+        
+        // 清空识别结果
+        function clearResult() {
+            recognitionResult.textContent = '';
+            addLog('已清空识别结果');
+        }
+        
+        // 添加事件监听器
+        function setupEventListeners() {
+            connectBtn.addEventListener('click', connectRemote);
+            disconnectBtn.addEventListener('click', disconnectRemote);
+            startBtn.addEventListener('click', startRecognition);
+            stopBtn.addEventListener('click', stopRecognition);
+            pauseBtn.addEventListener('click', pauseRecognition);
+            resumeBtn.addEventListener('click', resumeRecognition);
+            clearResultBtn.addEventListener('click', clearResult);
+            sendToDHBtn.addEventListener('click', () => sendToDigitalHuman());
+            applySettingsBtn.addEventListener('click', applyAudioSettings);
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            addLog('页面已加载');
+            initController();
+            setupEventListeners();
+            updateButtonStates();
+        });
+    </script>
+</body>
+</html> 

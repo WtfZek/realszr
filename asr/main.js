@@ -24,14 +24,27 @@ var rec = Recorder({
 var isRecordingPaused = false;
 var isRec = false; // 定义isRec变量，初始为false
 
+// 全局配置变量
+window._asrPauseDelay = 500;    // 默认暂停延迟时间(毫秒)
+window._asrResumeDelay = 1500;  // 默认恢复延迟时间(毫秒)
+
 // 全局函数，允许从外部暂停ASR录音
 window.pauseASRRecording = function() {
     if (!isRecordingPaused && rec) {
-        console.log("ASR录音被外部暂停");
-        isRecordingPaused = true;
-        // 暂停录音处理但不关闭连接
-        rec.pause();
-        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 检测到声音播放，语音识别已暂停</span>";
+        const pauseDelay = window._asrPauseDelay || 500; // 使用配置的延迟或默认值
+        console.log(`ASR录音被外部暂停请求，${pauseDelay/1000}秒后执行`);
+        
+        // 延迟配置的时间后执行暂停，给数字人停顿提供缓冲时间
+        setTimeout(() => {
+            // 再次检查是否仍需要暂停（可能在延迟期间已经被恢复）
+            if (!isRecordingPaused && rec) {
+                console.log("ASR录音被外部暂停");
+                isRecordingPaused = true;
+                // 暂停录音处理但不关闭连接
+                rec.pause();
+                info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 检测到声音播放，语音识别已暂停</span>";
+            }
+        }, pauseDelay);
     }
 };
 
@@ -40,6 +53,8 @@ window.resumeASRRecording = function() {
     if (isRecordingPaused && rec) {
         console.log("ASR录音被外部恢复");
         isRecordingPaused = false;
+        isPendingPause = false; // 重置挂起暂停标志
+        
         // 恢复录音处理
         rec.resume();
         info_div.innerHTML = "<span style='color:#2ec4b6'>✓ 语音识别已恢复，可以说话了</span>";
@@ -121,6 +136,48 @@ window.ASRBridge = {
     clearResult: function() {
         document.getElementById('varArea').value = '';
         return { success: true, message: '清空结果成功' };
+    },
+    
+    // 设置音频监测配置
+    setAudioConfig: function(config) {
+        if (!config || typeof config !== 'object') {
+            return { success: false, message: '配置参数格式错误' };
+        }
+        
+        // 设置音量阈值
+        if (typeof config.volumeThreshold === 'number') {
+            audioVolumeThreshold = config.volumeThreshold;
+            console.log(`音量阈值已更新为: ${audioVolumeThreshold}`);
+            
+            // 保存到本地存储
+            try {
+                localStorage.setItem('audioVolumeThreshold', audioVolumeThreshold);
+            } catch (e) {
+                console.error("保存音量阈值设置失败:", e);
+            }
+        }
+        
+        // 设置暂停延迟时间（毫秒）
+        if (typeof config.pauseDelay === 'number' && config.pauseDelay >= 0) {
+            window._asrPauseDelay = config.pauseDelay;
+            console.log(`暂停延迟已更新为: ${window._asrPauseDelay}毫秒`);
+        }
+        
+        // 设置恢复延迟时间（毫秒）
+        if (typeof config.resumeDelay === 'number' && config.resumeDelay >= 0) {
+            window._asrResumeDelay = config.resumeDelay;
+            console.log(`恢复延迟已更新为: ${window._asrResumeDelay}毫秒`);
+        }
+        
+        return { 
+            success: true, 
+            message: '音频配置已更新',
+            currentConfig: {
+                volumeThreshold: audioVolumeThreshold,
+                pauseDelay: window._asrPauseDelay || 500,
+                resumeDelay: window._asrResumeDelay || 1500
+            }
+        };
     }
 };
 
@@ -206,6 +263,14 @@ window.addEventListener('message', function(event) {
                     result: window.ASRBridge.setHotwords(data.hotwords)
                 };
                 break;
+                
+            case 'set_audio_config':
+                response = { 
+                    type: 'asr_response', 
+                    action: 'set_audio_config',
+                    result: window.ASRBridge.setAudioConfig(data.config || {})
+                };
+                break;
         }
         
         // 发送响应给父窗口
@@ -215,9 +280,11 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// 添加音频音量监测变量
-var lastAudioVolumeTime = 0;
+// 音频状态变量
+var lastAudioVolumeTime = 0; // 上次检测到高音量的时间
+var lastAudioLowTime = 0;    // 上次检测到低音量的时间
 var audioVolumeThreshold = 20; // 音量阈值，可根据实际情况调整
+var isPendingPause = false;  // 是否正在等待暂停
 var audioCheckInterval = null;
 var audioContext = null;
 var audioAnalyser = null;
@@ -391,6 +458,8 @@ function handleExternalVolumeData(volumeData) {
     
     try {
         const averageVolume = volumeData.average || 0;
+        const now = Date.now();
+        const resumeDelay = window._asrResumeDelay || 1500; // 使用配置的恢复延迟或默认值
         
         // 更新音量指示器
         var volumeBar = document.getElementById('audio-volume-bar');
@@ -407,21 +476,30 @@ function handleExternalVolumeData(volumeData) {
             }
         }
         
-        // console.log("当前音频音量:", averageVolume);
-        
-        // 根据音量暂停/恢复录音
+        // 音量超过阈值逻辑
         if (averageVolume > audioVolumeThreshold) {
-            // 音量超过阈值，暂停录音
-            if (!isRecordingPaused) {
+            // 音量超过阈值，记录时间
+            lastAudioVolumeTime = now;
+            
+            // 如果当前不在暂停状态，且没有挂起的暂停请求，创建一个暂停请求
+            if (!isRecordingPaused && !isPendingPause) {
+                isPendingPause = true;
+                console.log("检测到高音量，准备暂停语音识别");
+                
+                // 调用已优化的pauseASRRecording函数，其内部有动态配置的延迟
                 window.pauseASRRecording();
-                console.log("音量过高，暂停语音识别");
             }
-            lastAudioVolumeTime = Date.now();
-        } else if (Date.now() - lastAudioVolumeTime > 1000) { 
-            // 音量低于阈值且持续1秒，恢复录音
-            if (isRecordingPaused) {
+        } 
+        // 音量低于阈值逻辑
+        else {
+            // 更新最后一次低音量时间
+            lastAudioLowTime = now;
+            
+            // 如果持续低音量超过配置的时间，且当前处于暂停状态，则恢复录音
+            if (isRecordingPaused && (now - lastAudioVolumeTime > resumeDelay)) {
+                isPendingPause = false; // 清除任何挂起的暂停请求
                 window.resumeASRRecording();
-                console.log("音量已恢复正常，继续语音识别");
+                console.log(`持续检测到低音量${resumeDelay/1000}秒，恢复语音识别`);
             }
         }
     } catch (e) {
@@ -928,96 +1006,116 @@ async function waitSpeakingEnd() {
     }
 }
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
-// 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
-function getJsonMessage( jsonMsg ) {
-	//console.log(jsonMsg);
-	console.log( "message: " + JSON.parse(jsonMsg.data)['text'] );
-
-
-	var rectxt=""+JSON.parse(jsonMsg.data)['text'];
-	var asrmodel=JSON.parse(jsonMsg.data)['mode'];
-	var is_final=JSON.parse(jsonMsg.data)['is_final'];
-	var timestamp=JSON.parse(jsonMsg.data)['timestamp'];
-
-    // 检查识别文本的长度，防止显示区域过满
-    var maxTextLength = 500; // 最大字符数
-    if (rec_text.length > maxTextLength) {
-        // 文本过长时清空之前的内容
-        rec_text = "";
-        offline_text = "";
-        console.log("识别文本已超过最大长度，已自动清空");
-    }
-
-	if(asrmodel=="2pass-offline" || asrmodel=="offline")
-	{
-		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
-		rec_text=offline_text;
-
-        // 获取当前时间
-        var now = new Date();
-        var timeString = now.getHours().toString().padStart(2, '0') + ':' +
-            now.getMinutes().toString().padStart(2, '0') + ':' +
-            now.getSeconds().toString().padStart(2, '0');
-
-
-        onASRResult(rectxt.replace(/ +/g,""));
-
-		fetch('http://192.168.3.100:8018/human', {
-            body: JSON.stringify({
-                text: rectxt.replace(/ +/g,""),
-                type: 'chat',
-                interrupt: false,
-                sessionid: parseInt(window.parent.document.getElementById('sessionid').value), // 默认会话ID，如果需要可以从页面获取
-            }),
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: 'POST'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    console.error('后端响应错误:', response.status);
-                    info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
-                } else {
-                    console.log('识别文本发送成功');
-                    info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
-                }
-                return response.json().catch(e => null);
-            })
-            .then(data => {
-                if (data) console.log('后端返回数据:', data);
-            })
-            .catch(error => {
-                console.error('请求失败:', error);
-                info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
-            });
-
-        // 不再等待数字人响应
-        // waitSpeakingEnd();
-	}
-	else
-	{
-		rec_text=rec_text+rectxt; //.replace(/ +/g,"");
-	}
-	var varArea=document.getElementById('varArea');
-	
-	varArea.value=rec_text;
-
-    // 仅在最终结果时调用 onASRResult
-
-	console.log( "offline_text: " + asrmodel+","+offline_text);
-	console.log( "rec_text: " + rec_text);
-	if (isfilemode==true && is_final==true){
-		console.log("call stop ws!");
-		play_file();
-		wsconnecter.wsStop();
+function getJsonMessage(jsonMsg) {
+    console.log("收到JSON消息:", jsonMsg);
+    
+    try {
+        var reMessage = jsonMsg.data;
+        var jsonMessage = JSON.parse(reMessage); // 解析json字符串
         
-		info_div.innerHTML="请点击连接";
- 
-		btnStart.disabled = true;
-		btnStop.disabled = true;
-		btnConnect.disabled=false;
-	}
+        console.log("解析后的消息: " + jsonMessage['text']);
+
+        var rectxt = "" + jsonMessage['text'];
+        var asrmodel = jsonMessage['mode'];
+        var is_final = jsonMessage['is_final'];
+        var timestamp = jsonMessage['timestamp'];
+
+        // 检查识别文本的长度，防止显示区域过满
+        var maxTextLength = 500; // 最大字符数
+        if (rec_text.length > maxTextLength) {
+            // 文本过长时清空之前的内容
+            rec_text = "";
+            offline_text = "";
+            console.log("识别文本已超过最大长度，已自动清空");
+        }
+        
+        if (asrmodel == "2pass-offline" || asrmodel == "offline") {
+            // 清理文本中的多余空格
+            const cleanResult = rectxt.replace(/ +/g, "");
+            
+            if (!cleanResult || cleanResult.trim() === '') {
+                console.log("接收到空的识别结果，跳过处理");
+                return;
+            }
+            
+            offline_text = offline_text + cleanResult + '\n';
+            rec_text = offline_text;
+
+            // 获取当前时间
+            var now = new Date();
+            var timeString = now.getHours().toString().padStart(2, '0') + ':' +
+                now.getMinutes().toString().padStart(2, '0') + ':' +
+                now.getSeconds().toString().padStart(2, '0');
+
+            // 调用onASRResult处理识别结果
+            console.log("最终识别结果:", cleanResult);
+            onASRResult(cleanResult);
+
+            // 使用try-catch防止后端接口调用错误影响前端
+            try {
+                // 获取会话ID
+                const sessionId = currentSessionId || 0;
+                console.log("使用会话ID:", sessionId);
+                
+                // 调用后端接口
+                fetch('http://192.168.3.100:8018/human', {
+                    body: JSON.stringify({
+                        text: cleanResult,
+                        type: 'chat',
+                        interrupt: false,
+                        sessionid: sessionId,
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error('后端响应错误:', response.status);
+                        info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+                    } else {
+                        console.log('识别文本发送成功:', cleanResult);
+                        info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
+                    }
+                    return response.json().catch(e => null);
+                })
+                .then(data => {
+                    if (data) console.log('后端返回数据:', data);
+                })
+                .catch(error => {
+                    console.error('请求失败:', error);
+                    info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+                });
+            } catch (e) {
+                console.error("调用后端接口失败:", e);
+                info_div.innerHTML = '<span style="color:#f72585">❌ 调用接口出错: ' + e.message + '</span>';
+            }
+        } else {
+            rec_text = rec_text + rectxt;
+        }
+        
+        var varArea = document.getElementById('varArea');
+        varArea.value = rec_text;
+        
+        // 通知父窗口识别结果更新
+        notifyResultUpdate(rec_text);
+        
+        if (isfilemode == true && is_final == true) {
+            console.log("call stop ws!");
+            play_file();
+            wsconnecter.wsStop();
+
+            info_div.innerHTML = "请点击连接";
+
+            btnStart.disabled = true;
+            btnStop.disabled = true;
+            btnConnect.disabled = false;
+        }
+    } catch (e) {
+        console.error("处理消息错误:", e);
+        info_div.innerHTML = "解析异常: " + e.message;
+    }
 }
 
 // 连接状态响应
@@ -1313,70 +1411,146 @@ function addChatMessage(message, position) {
     // 'right' 或 true 表示右侧消息（发送者）
     const isSender = position === 'right' || position === true;
     
-    const chatItem = window.parent.document.createElement('div');
-    chatItem.classList.add('chat-item');
-    chatItem.classList.add(isSender ? 'sender' : 'receiver');
-    // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
-    chatItem.style.display = 'flex';
-    chatItem.style.alignItems = 'start'; // 垂直顶部对齐
-    chatItem.style.marginBottom = '10px'; // 为每个聊天项添加底部间距
-
-    // 创建头像图片元素
-    const avatar = window.parent.document.createElement('img');
-    avatar.src = './static/audio.png';
-    avatar.style.width = '24px';
-    avatar.style.height = '24px';
-    avatar.style.borderRadius = '50%';
-    avatar.style.marginRight = '10px';
-
-    // 创建一个容器来包裹头像和消息
-    const messageContainer = window.parent.document.createElement('div');
-    messageContainer.style.display = 'flex';
-    messageContainer.style.alignItems = 'end';
-    messageContainer.style.fontSize = '12px';
-    messageContainer.style.fontFamily = '宋体';
-    messageContainer.style.border = '1px solid #dcdcdc';
-    messageContainer.style.borderRadius = '8px';
-    messageContainer.style.backgroundColor = '#ffffff';
-    messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
-    messageContainer.style.padding = '10px';
-    messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
-
-    // 将头像和消息添加到容器中
-    if (isSender) {
-        messageContainer.appendChild(window.parent.document.createTextNode(message));
-        chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
-        avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
-        avatar.style.marginRight = 0; // 移除发送者头像左侧间距
-    } else {
-        messageContainer.appendChild(window.parent.document.createTextNode(message));
-        chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
-    }
-
-    // 将容器添加到聊天项中
-    if (isSender) {
-        chatItem.appendChild(messageContainer);
-        chatItem.appendChild(avatar);
-    } else {
-        chatItem.appendChild(avatar);
-        chatItem.appendChild(messageContainer);
-    }
-
-    // 首先尝试在父窗口查找chat-content元素
-    const chatContent = window.parent.document.getElementById('chat-content');
-    if (chatContent) {
-        chatContent.appendChild(chatItem);
-        // 将滚动条滚动到最底部
-        chatContent.scrollTop = chatContent.scrollHeight;
-    } else {
-        console.error('找不到chat-content元素，无法添加消息');
+    // 创建消息ID，便于防重复
+    const timestamp = new Date().getTime();
+    const messageId = `msg_${timestamp}`;
+    
+    // 先添加到当前页面的聊天窗口
+    addChatMessageToDOM(message, isSender, messageId);
+    
+    // 使用广播服务发送消息到所有页面
+    if (window.chatBroadcastService) {
+        window.chatBroadcastService.broadcastMessage(message, isSender ? 'right' : 'left');
     }
 }
 
-// 监听 ASR 识别结果（假设 ASR 结果通过某种方式传递到这里）
-// 这里只是示例，需要根据实际情况修改
+/**
+ * 在DOM中添加聊天消息
+ * @param {string} message - 消息内容
+ * @param {boolean} isSender - 是否是发送者
+ * @param {string} messageId - 消息ID，用于防重复
+ */
+function addChatMessageToDOM(message, isSender, messageId) {
+    try {
+        // 检查消息是否已存在，避免重复
+        if (messageId) {
+            const existingMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (existingMessage) {
+                console.log('消息已存在，跳过显示:', messageId);
+                return;
+            }
+        }
+        
+        const chatItem = document.createElement('div');
+        chatItem.classList.add('chat-item');
+        chatItem.classList.add(isSender ? 'sender' : 'receiver');
+        
+        // 添加消息ID，用于防重复
+        if (messageId) {
+            chatItem.setAttribute('data-message-id', messageId);
+        }
+        
+        // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
+        chatItem.style.display = 'flex';
+        chatItem.style.alignItems = 'start'; // 垂直顶部对齐
+        chatItem.style.marginBottom = '10px'; // 为每个聊天项添加底部间距
+
+        // 创建头像图片元素
+        const avatar = document.createElement('img');
+        avatar.src = '../static/audio.png'; // 尝试相对路径
+        avatar.onerror = function() {
+            // 如果加载失败，尝试其他路径
+            avatar.src = './static/audio.png';
+            avatar.onerror = function() {
+                avatar.src = '/static/audio.png';
+                avatar.onerror = null; // 防止无限循环
+            };
+        };
+        avatar.style.width = '24px';
+        avatar.style.height = '24px';
+        avatar.style.borderRadius = '50%';
+        avatar.style.marginRight = '10px';
+
+        // 创建一个容器来包裹头像和消息
+        const messageContainer = document.createElement('div');
+        messageContainer.style.display = 'flex';
+        messageContainer.style.alignItems = 'end';
+        messageContainer.style.fontSize = '12px';
+        messageContainer.style.fontFamily = '宋体';
+        messageContainer.style.border = '1px solid #dcdcdc';
+        messageContainer.style.borderRadius = '8px';
+        messageContainer.style.backgroundColor = '#ffffff';
+        messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+        messageContainer.style.padding = '10px';
+        messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
+
+        // 将头像和消息添加到容器中
+        if (isSender) {
+            messageContainer.appendChild(document.createTextNode(message));
+            chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
+            avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
+            avatar.style.marginRight = 0; // 移除发送者头像左侧间距
+        } else {
+            messageContainer.appendChild(document.createTextNode(message));
+            chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
+        }
+
+        // 将容器添加到聊天项中
+        if (isSender) {
+            chatItem.appendChild(messageContainer);
+            chatItem.appendChild(avatar);
+        } else {
+            chatItem.appendChild(avatar);
+            chatItem.appendChild(messageContainer);
+        }
+
+        // 查找本地的chat-content元素
+        let chatContent = document.getElementById('chat-content');
+        
+        // 如果本地没有，则创建一个
+        if (!chatContent) {
+            chatContent = document.createElement('div');
+            chatContent.id = 'chat-content';
+            chatContent.style.maxHeight = '300px';
+            chatContent.style.overflow = 'auto';
+            chatContent.style.margin = '10px 0';
+            chatContent.style.padding = '10px';
+            chatContent.style.border = '1px solid #dcdcdc';
+            chatContent.style.borderRadius = '8px';
+            
+            // 添加到页面中
+            const container = document.querySelector('.asr-container') || document.body;
+            container.appendChild(chatContent);
+        }
+        
+        // 添加消息到聊天内容区域
+        chatContent.appendChild(chatItem);
+        
+        // 将滚动条滚动到最底部
+        chatContent.scrollTop = chatContent.scrollHeight;
+    } catch (e) {
+        console.error('添加消息到DOM失败:', e);
+    }
+}
+
+// 监听 ASR 识别结果
 function onASRResult(result) {
-    addChatMessage('' + result, 'left');
+    if (!result || typeof result !== 'string' || result.trim() === '') {
+        console.log('收到空的ASR结果，跳过处理');
+        return;
+    }
+    
+    console.log('收到ASR结果:', result);
+    
+    // 确保结果是字符串并且非空
+    const cleanResult = result.trim();
+    if (cleanResult) {
+        // 使用addChatMessage添加到聊天窗口，它会触发广播服务
+        addChatMessage(cleanResult, 'left');
+        
+        // 注意：调用/human接口已经在getJsonMessage函数中完成
+        // 且webrtcapi-asr.html也已经注册了处理器来响应广播的消息
+    }
 }
 
 // 页面初始化
@@ -1438,6 +1612,27 @@ window.onload = function() {
             
             console.log(`扬声器检测已${this.checked ? '开启' : '关闭'}，阈值设为：${thresholdValue}`);
         });
+    }
+    
+    // 订阅广播消息，用于接收其他页面发来的消息
+    if (window.chatBroadcastService) {
+        window.chatBroadcastService.subscribe(function(data) {
+            // 仅处理其他页面发来的消息，避免重复显示
+            const isCurrentMessage = document.querySelector(`[data-message-id="${data.id}"]`);
+            if (!isCurrentMessage) {
+                addChatMessageToDOM(data.message, data.position === 'right');
+            }
+        });
+        
+        // 加载已存储的消息
+        const storedMessages = window.chatBroadcastService.getStoredMessages();
+        if (storedMessages && storedMessages.length > 0) {
+            // 最多显示最新的10条消息
+            const recentMessages = storedMessages.slice(-10);
+            recentMessages.forEach(msg => {
+                addChatMessageToDOM(msg.message, msg.position === 'right');
+            });
+        }
     }
     
     console.log("ASR页面初始化完成");

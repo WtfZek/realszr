@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iframe通信示例</title>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --primary-hover: #3a56d4;
+            --secondary-color: #f72585;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --background-light: #ffffff;
+            --background-dark: #f8f9fa;
+            --border-color: #e0e0e0;
+            --success-color: #2ec4b6;
+            --warning-color: #ff9f1c;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-dark);
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+        }
+
+        .card {
+            background-color: var(--background-light);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1, h2, h3 {
+            margin-top: 0;
+            color: var(--text-primary);
+        }
+
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        input[type="text"], input[type="number"] {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+        }
+
+        button {
+            padding: 10px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .result-area {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background-color: rgba(46, 196, 182, 0.15);
+            color: var(--success-color);
+        }
+
+        .status.disconnected {
+            background-color: rgba(247, 37, 133, 0.15);
+            color: var(--secondary-color);
+        }
+
+        .status.connecting {
+            background-color: rgba(255, 159, 28, 0.15);
+            color: var(--warning-color);
+        }
+
+        .log-container {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry.info {
+            color: #0066cc;
+        }
+
+        .log-entry.success {
+            color: #2ec4b6;
+        }
+
+        .log-entry.warning {
+            color: #ff9f1c;
+        }
+
+        .log-entry.error {
+            color: #f72585;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="card">
+                <h2>调用端控制面板</h2>
+                <div class="control-panel">
+                    <div class="form-group">
+                        <label for="sessionId">会话ID</label>
+                        <input type="text" id="sessionId" placeholder="输入会话ID" value="12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="wsUrl">WebSocket服务器URL (可选)</label>
+                        <input type="text" id="wsUrl" placeholder="例如: wss://example.com/ws">
+                    </div>
+                    <div class="button-group">
+                        <button id="connectBtn">连接</button>
+                        <button id="disconnectBtn" disabled>断开</button>
+                    </div>
+                    <div>
+                        <p>
+                            状态: <span id="statusIndicator" class="status disconnected">断开</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>语音识别控制</h2>
+                <div class="control-panel">
+                    <div class="button-group">
+                        <button id="startBtn" disabled>开始识别</button>
+                        <button id="stopBtn" disabled>停止识别</button>
+                        <button id="pauseBtn" disabled>暂停识别</button>
+                        <button id="resumeBtn" disabled>恢复识别</button>
+                        <button id="clearBtn" disabled>清空结果</button>
+                        <button id="getResultBtn" disabled>获取结果</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="hotwords">热词设置</label>
+                        <input type="text" id="hotwords" placeholder="输入热词, 如: 阿里巴巴 20">
+                        <button id="setHotwordsBtn" disabled>设置热词</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>识别结果</h2>
+                <textarea id="resultArea" class="result-area" readonly placeholder="识别结果将显示在这里..."></textarea>
+                <div id="logContainer" class="log-container"></div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <div class="card">
+                <h2>被调用端 (iframe)</h2>
+                <iframe id="asr-iframe" src="asr/index.html" allowfullscreen allow="microphone"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="iframe-client.js"></script>
+    <script>
+        // 初始化客户端
+        const client = new IframeClient({
+            iframeSelector: '#asr-iframe',
+            debug: true,
+            onReady: function() {
+                addLog('WebSocket桥接服务已就绪', 'success');
+                document.getElementById('connectBtn').disabled = false;
+            },
+            onMessage: function(message, sessionId) {
+                addLog(`收到WebSocket消息: ${message}`, 'info');
+            },
+            onResult: function(result, sessionId) {
+                document.getElementById('resultArea').value = result;
+                addLog(`识别结果更新: ${result.substring(0, 30)}${result.length > 30 ? '...' : ''}`, 'info');
+            },
+            onStatusChange: function(data) {
+                updateStatus(data.status);
+                addLog(`连接状态变更: ${data.status}`, data.status === 'connected' ? 'success' : 'warning');
+            },
+            onError: function(error, sessionId) {
+                addLog(`错误: ${error}`, 'error');
+            }
+        });
+
+        // DOM元素引用
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const getResultBtn = document.getElementById('getResultBtn');
+        const setHotwordsBtn = document.getElementById('setHotwordsBtn');
+        const resultArea = document.getElementById('resultArea');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const logContainer = document.getElementById('logContainer');
+
+        // 连接按钮事件
+        connectBtn.addEventListener('click', function() {
+            const sessionId = document.getElementById('sessionId').value;
+            const wsUrl = document.getElementById('wsUrl').value || null;
+            
+            updateStatus('connecting');
+            addLog(`正在连接: sessionId=${sessionId}`, 'info');
+            
+            client.connect(sessionId, wsUrl)
+                .then(result => {
+                    addLog(`连接成功: ${result.message}`, 'success');
+                    enableButtons(true);
+                })
+                .catch(error => {
+                    addLog(`连接失败: ${error.message}`, 'error');
+                    updateStatus('disconnected');
+                });
+        });
+
+        // 断开按钮事件
+        disconnectBtn.addEventListener('click', function() {
+            client.disconnect()
+                .then(result => {
+                    addLog(`断开成功: ${result.message}`, 'success');
+                    enableButtons(false);
+                })
+                .catch(error => {
+                    addLog(`断开失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 开始识别按钮事件
+        startBtn.addEventListener('click', function() {
+            client.start()
+                .then(result => {
+                    addLog(`开始识别: ${result.message}`, 'success');
+                })
+                .catch(error => {
+                    addLog(`开始识别失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 停止识别按钮事件
+        stopBtn.addEventListener('click', function() {
+            client.stop()
+                .then(result => {
+                    addLog(`停止识别: ${result.message}`, 'success');
+                })
+                .catch(error => {
+                    addLog(`停止识别失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 暂停识别按钮事件
+        pauseBtn.addEventListener('click', function() {
+            client.pause()
+                .then(result => {
+                    addLog(`暂停识别: ${result.message}`, 'success');
+                })
+                .catch(error => {
+                    addLog(`暂停识别失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 恢复识别按钮事件
+        resumeBtn.addEventListener('click', function() {
+            client.resume()
+                .then(result => {
+                    addLog(`恢复识别: ${result.message}`, 'success');
+                })
+                .catch(error => {
+                    addLog(`恢复识别失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 清空结果按钮事件
+        clearBtn.addEventListener('click', function() {
+            client.clearResult()
+                .then(result => {
+                    addLog(`清空结果: ${result.message}`, 'success');
+                    resultArea.value = '';
+                })
+                .catch(error => {
+                    addLog(`清空结果失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 获取结果按钮事件
+        getResultBtn.addEventListener('click', function() {
+            client.getResult()
+                .then(result => {
+                    if (result.success) {
+                        resultArea.value = result.text;
+                        addLog(`获取结果成功: ${result.text.substring(0, 30)}${result.text.length > 30 ? '...' : ''}`, 'success');
+                    } else {
+                        addLog(`获取结果失败: ${result.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    addLog(`获取结果失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 设置热词按钮事件
+        setHotwordsBtn.addEventListener('click', function() {
+            const hotwords = document.getElementById('hotwords').value;
+            
+            client.setHotwords(hotwords)
+                .then(result => {
+                    addLog(`设置热词: ${result.message}`, 'success');
+                })
+                .catch(error => {
+                    addLog(`设置热词失败: ${error.message}`, 'error');
+                });
+        });
+
+        // 更新状态指示器
+        function updateStatus(status) {
+            statusIndicator.textContent = status === 'connected' ? '已连接' : status === 'connecting' ? '连接中' : '断开';
+            statusIndicator.className = `status ${status}`;
+        }
+
+        // 启用/禁用按钮
+        function enableButtons(enabled) {
+            connectBtn.disabled = enabled;
+            disconnectBtn.disabled = !enabled;
+            startBtn.disabled = !enabled;
+            stopBtn.disabled = !enabled;
+            pauseBtn.disabled = !enabled;
+            resumeBtn.disabled = !enabled;
+            clearBtn.disabled = !enabled;
+            getResultBtn.disabled = !enabled;
+            setHotwordsBtn.disabled = !enabled;
+        }
+
+        // 添加日志条目
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            
+            logEntry.textContent = `[${timeStr}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // 限制日志条目数量
+            if (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.children[0]);
+            }
+        }
+
+        // 初始日志
+        addLog('页面已加载，等待iframe初始化...', 'info');
+    </script>
+</body>
+</html>

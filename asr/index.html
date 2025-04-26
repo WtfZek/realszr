@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>语音识别</title>
+    <script src="ws-bridge.js"></script>
     <style>
         :root {
             --primary-color: #4361ee;
@@ -399,6 +400,17 @@
             <input type="range" id="threshold-slider" min="1" max="100" step="99" value="1" style="display:none;">
         </div>
         
+        <!-- 清空历史记录选项 -->
+        <div id="clear-history-control" style="margin-top: 15px;">
+            <div class="switch-container" style="justify-content: space-between;">
+                <label for="clear-history-toggle" style="margin: 0; font-size: 14px; color: var(--text-secondary);">每次进入页面时清空历史对话</label>
+                <label class="switch">
+                    <input type="checkbox" id="clear-history-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
         <!-- 手动暂停/恢复按钮 -->
         <!-- <div style="margin-top:15px;text-align:center;">
             <button id="manual-pause-button" style="padding:8px 16px;background:#ff9f1c;color:white;border:none;border-radius:4px;cursor:pointer;">暂停识别</button>
@@ -481,7 +493,6 @@ hello world 40</textarea>
 <script src="wav.js" charset="UTF-8"></script>
 <script src="pcm.js" charset="UTF-8"></script>
 <script src="wsconnecter.js" charset="utf-8"></script>
-<script src="ws-bridge.js" charset="utf-8"></script>
 <script src="main.js" charset="utf-8"></script>
 <!--<script src="../client.js"></script>-->
 <script>
@@ -524,6 +535,40 @@ hello world 40</textarea>
             this.disabled = true;
             document.getElementById('btnStart').disabled = false;
         });
+        
+        // 处理清空历史记录选项
+        const clearHistoryToggle = document.getElementById('clear-history-toggle');
+        if (clearHistoryToggle) {
+            // 从localStorage加载保存的设置
+            try {
+                const savedSetting = localStorage.getItem('shouldClearHistoryOnLoad');
+                if (savedSetting !== null) {
+                    const shouldClear = savedSetting === 'true';
+                    clearHistoryToggle.checked = shouldClear;
+                    window.shouldClearHistoryOnLoad = shouldClear;
+                }
+            } catch (e) {
+                console.error('加载清空历史设置失败:', e);
+            }
+            
+            // 监听变化
+            clearHistoryToggle.addEventListener('change', function() {
+                const shouldClear = this.checked;
+                // 调用全局函数设置
+                if (window.setClearHistoryOnLoad) {
+                    window.setClearHistoryOnLoad(shouldClear);
+                } else {
+                    window.shouldClearHistoryOnLoad = shouldClear;
+                    try {
+                        localStorage.setItem('shouldClearHistoryOnLoad', shouldClear);
+                    } catch (e) {
+                        console.error('保存清空历史设置失败:', e);
+                    }
+                }
+                
+                console.log(`已设置页面加载时${shouldClear ? '清空' : '保留'}历史对话消息`);
+            });
+        }
     });
 </script>
 </body>

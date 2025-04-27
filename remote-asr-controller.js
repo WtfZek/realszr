@@ -348,7 +348,7 @@ class RemoteASRController {
                 body: JSON.stringify({
                     text: text,
                     type: 'chat',
-                    interrupt: false,
+                    interrupt: true,
                     sessionid: parseInt(this.sessionId)
                 })
             })

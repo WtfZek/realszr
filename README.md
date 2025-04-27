@@ -80,8 +80,8 @@ client.connect('12345')
 // 设置音频配置参数，优化识别体验
 client.setAudioConfig({
     volumeThreshold: 15,    // 音量阈值，1-100，默认为20
-    pauseDelay: 500,        // 暂停延迟时间，单位毫秒，默认为500
-    resumeDelay: 1500       // 恢复延迟时间，单位毫秒，默认为1500
+    pauseDelay: 2000,        // 暂停延迟时间，单位毫秒，默认为500
+    resumeDelay: 2000       // 恢复延迟时间，单位毫秒，默认为1500
 })
 .then(result => {
     console.log('音频配置已设置:', result);

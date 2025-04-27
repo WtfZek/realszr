@@ -45,6 +45,10 @@ let asrIframe = null;
 let asrIframeReady = false;
 let asrSessionId = null;
 
+// 添加全局变量，用于跟踪对话状态
+window.lastUserMessageTimestamp = 0; // 上次用户发送消息的时间戳
+window.currentStreamingId = null; // 当前正在处理的流式消息ID
+
 // Function to establish WebSocket connection
 function connectWebSocket(sessionid) {
     console.log(`开始尝试建立 WebSocket 连接，sessionid: ${sessionid}`);
@@ -57,8 +61,8 @@ function connectWebSocket(sessionid) {
     }
 
     // Create a new WebSocket connection
-    // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `ws://192.168.3.100:8018/ws?sessionid=${sessionid}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//192.168.3.100:8018/ws?sessionid=${sessionid}`;
     console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
     ws = new WebSocket(wsUrl);
 
@@ -73,11 +77,31 @@ function connectWebSocket(sessionid) {
         if (event.data) {
             console.log('消息内容不为空，具体内容如下:');
             console.log("event.data", event.data);
+            
+            try {
+                // 尝试解析JSON，看是否是特殊控制消息
+                const jsonData = JSON.parse(event.data);
+                
+                // 检查是否是新一轮对话的开始
+                const isNewConversationTurn = shouldCreateNewChatItem();
+                
+                // 如果存在特定标记，表示这不是流式消息
+                if (jsonData.type === 'system' || jsonData.complete === true) {
+                    // 系统消息或完整消息，不使用流式处理
+                    addChatMessage(jsonData.text || jsonData.message || event.data, 'left', false);
+                    // 非流式消息后，重置当前流ID
+                    window.currentStreamingId = null;
+                } else {
+                    // 其他JSON消息，作为普通文本显示，使用流式处理
+                    addChatMessage(jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true);
+                }
+            } catch (e) {
+                // 不是JSON，作为普通文本用流式处理
+                addChatMessage(event.data, 'left', true);
+            }
         } else {
             console.log('接收到的消息内容为空');
         }
-        // 添加消息到聊天窗口，带打字机效果
-        addChatMessage(event.data, 'left');
     };
 
     ws.onclose = function (event) {
@@ -145,6 +169,10 @@ function negotiate() {
         // 使用返回的会话ID初始化ASR iframe
         initializeASRIframe(sessionId);
         
+        // 使用返回的有效sessionId建立WebSocket连接
+        console.log(`从服务器获取到sessionId: ${sessionId}，开始建立WebSocket连接`);
+        connectWebSocket(sessionId);
+        
         return pc.setRemoteDescription(answer);
     }).catch((e) => {
         alert(e);
@@ -172,9 +200,6 @@ function start() {
     // 获取用户输入的宽度和高度
     // customWidth = parseInt(document.getElementById('width-input').value);
     // customHeight = parseInt(document.getElementById('height-input').value);
-
-    const sessionid = parseInt(document.getElementById('sessionid').value);
-    connectWebSocket(sessionid);
 
     // connect audio / video
     pc.addEventListener('track', (evt) => {
@@ -311,7 +336,7 @@ function start() {
                 audioElement.srcObject = audioStream;
                 
                 // 新增：为原始音频流添加ASR处理
-                setupAudioRecognition(audioStream);
+                // setupAudioRecognition(audioStream);
             }
         }
     });
@@ -319,6 +344,11 @@ function start() {
     document.getElementById('start').style.display = 'none';
     negotiate();
     document.getElementById('stop').style.display = 'inline-block';
+
+    // const sessionid = parseInt(document.getElementById('sessionid').value);
+    // // 随机一个sessionid
+    // connectWebSocket(sessionid);
+
 }
 
 // 新增一个标志，用于判断是否是第一帧
@@ -612,11 +642,28 @@ function stop() {
         videoElement.srcObject = null;
         videoElement.style.display = 'none';
     }
-
-    // close peer connection
-    setTimeout(() => {
-        pc.close();
-    }, 500);
+    
+    // 使用cleanupResources函数关闭连接和清理资源
+    // 不保存会话数据，因为这是用户主动停止
+    cleanupResources({ saveSessionData: false });
+    
+    // 不再需要下面的代码，因为cleanupResources已经处理了
+    // // 关闭WebSocket连接
+    // if (ws) {
+    //     console.log('正在关闭WebSocket连接...');
+    //     try {
+    //         ws.close();
+    //         isWebSocketConnected = false;
+    //         console.log('WebSocket连接已关闭');
+    //     } catch (e) {
+    //         console.error('关闭WebSocket连接时出错:', e);
+    //     }
+    // }
+    //
+    // // close peer connection
+    // setTimeout(() => {
+    //     pc.close();
+    // }, 500);
 }
 
 // RGB 转 HSV 函数
@@ -682,16 +729,200 @@ const chatContent = document.getElementById('chat-content');
  * @param {string|boolean} position - 消息位置
  *   - 'left' 或 false: 显示在左侧（接收者）
  *   - 'right' 或 true: 显示在右侧（发送者）
+ * @param {boolean} isStreaming - 是否为流式消息，默认为false
  */
-function addChatMessage(message, position) {
+function addChatMessage(message, position, isStreaming = false) {
+
     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
     // 'left' 或 false 表示左侧消息（接收者）
     // 'right' 或 true 表示右侧消息（发送者）
     const isSender = position === 'right' || position === true;
     
+    // 首先尝试在当前文档中查找chat-content元素
+    let chatContent = document.getElementById('chat-content');
+    // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
+    if (!chatContent && window.parent && window.parent !== window) {
+        try {
+            chatContent = window.parent.document.getElementById('chat-content');
+            console.log('在父窗口找到chat-content元素');
+        } catch (e) {
+            console.error('尝试访问父窗口时出错:', e);
+            return; // 如果找不到聊天内容区域，直接返回
+        }
+    }
+    
+    if (!chatContent) {
+        console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
+        return;
+    }
+    
+    // 如果是用户发送的消息，记录时间戳并重置当前流ID
+    if (isSender) {
+        window.lastUserMessageTimestamp = Date.now();
+        window.currentStreamingId = null; // 用户发送消息后，重置流ID，下一个系统消息将创建新的对话框
+        
+        // 非流式消息，直接创建新的聊天项
+        createNewChatItem(chatContent, message, isSender, false);
+    } else {
+        // 处理系统（左侧）消息
+        if (isStreaming) {
+            // 检查是否需要创建新的对话框
+            const shouldCreateNewItem = shouldCreateNewChatItem();
+            console.log('shouldCreateNewItem', shouldCreateNewItem);
+            
+            if (shouldCreateNewItem) {
+                // 需要创建新对话框
+                const newItem = createNewChatItem(chatContent, message, isSender, true);
+                // 为新创建的流式消息生成唯一ID
+                window.currentStreamingId = 'stream-' + Date.now();
+                newItem.setAttribute('data-stream-id', window.currentStreamingId);
+            } else {
+                // 查找最后一个匹配的流式聊天项
+                const lastChatItem = findLastStreamingChatItem(chatContent);
+                
+                if (lastChatItem) {
+                    // 找到了流式聊天项，更新其内容
+                    updateChatItemWithTypingEffect(lastChatItem, message);
+                } else {
+                    // 没有找到匹配的流式聊天项，创建一个新的
+                    const newItem = createNewChatItem(chatContent, message, isSender, true);
+                    // 为新创建的流式消息生成唯一ID
+                    window.currentStreamingId = 'stream-' + Date.now();
+                    newItem.setAttribute('data-stream-id', window.currentStreamingId);
+                }
+            }
+        } else {
+            // 非流式消息，强制创建新的聊天项
+            createNewChatItem(chatContent, message, isSender, false);
+            // 非流式消息后，重置当前流ID
+            window.currentStreamingId = null;
+        }
+    }
+    
+    // 将滚动条滚动到最底部
+    chatContent.scrollTop = chatContent.scrollHeight;
+}
+
+/**
+ * 判断是否应该创建新的聊天项
+ * @returns {boolean} - 如果应该创建新聊天项，返回true
+ */
+function shouldCreateNewChatItem() {
+    // 如果没有当前流ID，说明需要创建新的聊天项
+    console.log('当前流ID：', window.currentStreamingId);
+    if (!window.currentStreamingId) {
+        return true;
+    }
+    
+    // 如果用户在短时间内发送了新消息，也需要创建新的聊天项
+    // const timeSinceLastUserMessage = Date.now() - window.lastUserMessageTimestamp;
+    // 如果用户在5秒内发送过消息，后续的系统消息应该创建新的聊天项
+    // if (timeSinceLastUserMessage < 5000) {
+    //     return true;
+    // }
+    
+    // 其他情况可以继续使用当前流
+    return false;
+}
+
+/**
+ * 查找最后一个流式消息聊天项
+ * @param {HTMLElement} chatContent - 聊天内容容器
+ * @returns {HTMLElement|null} - 找到的聊天项或null
+ */
+function findLastStreamingChatItem(chatContent) {
+    // 如果没有当前流ID，返回null
+    if (!window.currentStreamingId) {
+        return null;
+    }
+    
+    const chatItems = chatContent.querySelectorAll('.chat-item');
+    if (chatItems.length === 0) return null;
+    
+    // 从后向前查找匹配的聊天项
+    for (let i = chatItems.length - 1; i >= 0; i--) {
+        const item = chatItems[i];
+        // 检查是否是接收者消息
+        if (item.classList.contains('receiver')) {
+            // 检查是否是当前流ID的消息
+            if (item.getAttribute('data-stream-id') === window.currentStreamingId) {
+                return item;
+            }
+        }
+    }
+    
+    return null;
+}
+
+
+/**
+ * 使用打字机效果更新聊天项内容
+ * @param {HTMLElement} chatItem - 要更新的聊天项
+ * @param {string} message - 新消息内容
+ */
+function updateChatItemWithTypingEffect(chatItem, message) {
+    // 找到消息容器（第一个div元素）
+    const messageContainer = chatItem.querySelector('div:not(img)');
+    if (!messageContainer) return;
+    
+    // 获取当前已显示的文本
+    const currentText = messageContainer.textContent || '';
+    
+    // 如果新消息与当前文本的前缀相同，只添加新部分
+    if (message.startsWith(currentText)) {
+        const newPart = message.slice(currentText.length);
+        if (!newPart) return; // 没有新内容
+        
+        // 使用打字机效果添加新部分
+        let index = 0;
+        const typingInterval = setInterval(() => {
+            if (index < newPart.length) {
+                messageContainer.textContent += newPart[index];
+                index++;
+            } else {
+                clearInterval(typingInterval);
+            }
+        }, 30); // 调整速度
+    } else {
+        // 如果不是延续，不替换文本，而是追加新消息
+        // 避免重复添加已有内容，尝试找出共同部分
+        let commonPrefixLength = 0;
+        const minLength = Math.min(currentText.length, message.length);
+        
+        // 查找共同前缀的长度
+        for (let i = 0; i < minLength; i++) {
+            if (currentText[i] === message[i]) {
+                commonPrefixLength++;
+            } else {
+                break;
+            }
+        }
+        
+        // 只追加新的部分
+        const newContent = message.slice(commonPrefixLength);
+        if (newContent) {
+            // 直接追加新内容，不使用打字效果以避免延迟
+            messageContainer.textContent += newContent;
+        }
+    }
+}
+
+/**
+ * 创建新的聊天项
+ * @param {HTMLElement} chatContent - 聊天内容容器
+ * @param {string} message - 消息内容
+ * @param {boolean} isSender - 是否为发送者消息
+ * @param {boolean} isStreaming - 是否为流式消息
+ * @returns {HTMLElement} - 创建的聊天项元素
+ */
+function createNewChatItem(chatContent, message, isSender, isStreaming = false) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
+    
+    // 标记流式消息状态
+    chatItem.setAttribute('data-streaming', isStreaming ? 'true' : 'false');
+    
     // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
     chatItem.style.display = 'flex';
     chatItem.style.alignItems = 'start'; // 垂直顶部对齐
@@ -718,45 +949,28 @@ function addChatMessage(message, position) {
     messageContainer.style.padding = '10px';
     messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
 
-    // 将头像和消息添加到容器中
+    // 添加消息文本
+    messageContainer.textContent = message;
+
+    // 设置对齐方式和添加元素
     if (isSender) {
-        messageContainer.appendChild(document.createTextNode(message));
         chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
         avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
         avatar.style.marginRight = 0; // 移除发送者头像左侧间距
+        
+        chatItem.appendChild(messageContainer);
+        chatItem.appendChild(avatar);
     } else {
-        messageContainer.appendChild(document.createTextNode(message));
         chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
-    }
-
-    // 将容器添加到聊天项中
-    if (isSender) {
-        chatItem.appendChild(messageContainer);
-        chatItem.appendChild(avatar);
-    } else {
+        
         chatItem.appendChild(avatar);
         chatItem.appendChild(messageContainer);
     }
 
-    // 首先尝试在当前文档中查找chat-content元素
-    let chatContent = document.getElementById('chat-content');
-    // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
-    if (!chatContent && window.parent && window.parent !== window) {
-        try {
-            chatContent = window.parent.document.getElementById('chat-content');
-            console.log('在父窗口找到chat-content元素');
-        } catch (e) {
-            console.error('尝试访问父窗口时出错:', e);
-        }
-    }
-
-    if (chatContent) {
-        chatContent.appendChild(chatItem);
-        // 将滚动条滚动到最底部
-        chatContent.scrollTop = chatContent.scrollHeight;
-    } else {
-        console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
-    }
+    // 添加到聊天内容区域
+    chatContent.appendChild(chatItem);
+    
+    return chatItem;
 }
 
 /**
@@ -938,23 +1152,50 @@ const echoForm = document.getElementById('echo-form');
 echoForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = document.getElementById('message').value;
-    addChatMessage('' + message, 'left');
-    console.log('获取的消息:', message);
-    console.log('sessionid: ',document.getElementById('sessionid').value);
-    // console.log('消息中是否包含换行符:', message.includes('\n'));
-    // 原有的表单提交逻辑
+    
+    if (!message.trim()) return; // 不发送空消息
+    
+    // 将用户消息显示为右侧消息(发送者)，不使用流式处理
+    // currentSystemMessageId = null;
+    addChatMessage(message, 'right', false);
+    
+    // 更新最后一次用户消息的时间戳
+    window.lastUserMessageTimestamp = Date.now();
+    
+    // 用户发送新消息后，强制重置当前流ID
+    window.currentStreamingId = null;
+    
+    console.log('发送消息:', message);
+    console.log('sessionid:', document.getElementById('sessionid').value);
+    
+    // 发送消息到服务器
     fetch('http://192.168.3.100:8018/human', {
         body: JSON.stringify({
             text: message,
             type: 'chat',
-            interrupt: false,
+            interrupt: true,
             sessionid: parseInt(document.getElementById('sessionid').value),
         }),
         headers: {
             'Content-Type': 'application/json'
         },
         method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            console.error('发送消息失败:', response.status);
+            // 可以在聊天窗口中添加错误提示
+            addChatMessage('消息发送失败，请重试', 'left', false);
+        }
+        return response.text().catch(() => null);
+    })
+    .catch(error => {
+        console.error('请求发生错误:', error);
+        // 可以在聊天窗口中添加错误提示
+        addChatMessage('网络错误，请检查连接', 'left', false);
     });
+    
+    // 清空输入框
     document.getElementById('message').value = '';
 });
 
@@ -1080,10 +1321,42 @@ window.onload = function() {
  * 处理语音识别结果
  * @param {string} result - 语音识别得到的文本结果
  */
-function onASRResult(result) {
-    // 将识别结果作为左侧消息显示（用户说的话）
-    addChatMessage('' + result, 'left');
-}
+// function onASRResult(result) {
+//     if (!result || typeof result !== 'string' || !result.trim()) {
+//         console.log('收到空的ASR结果，跳过处理');
+//         return;
+//     }
+    
+//     // 将识别结果作为右侧消息显示（用户说的话）
+//     // currentSystemMessageId = null;
+//     addChatMessage(result, 'right', false);
+    
+//     // 更新最后一次用户消息的时间戳
+//     window.lastUserMessageTimestamp = Date.now();
+    
+//     // 用户发送新消息后，强制重置当前流ID
+//     window.currentStreamingId = null;
+    
+//     console.log('发送ASR识别结果:', result);
+    
+//     // 语音识别结果也发送到服务器
+//     const sessionId = parseInt(document.getElementById('sessionid').value);
+//     fetch('http://192.168.3.100:8018/human', {
+//         body: JSON.stringify({
+//             text: result,
+//             type: 'chat',
+//             interrupt: true,
+//             sessionid: sessionId,
+//         }),
+//         headers: {
+//             'Content-Type': 'application/json'
+//         },
+//         method: 'POST'
+//     })
+//     .catch(error => {
+//         console.error('发送ASR结果失败:', error);
+//     });
+// }
 
 // 新增：处理数字人音频数据并传递给ASR识别的函数
 function setupAudioRecognition(audioStream) {
@@ -1136,16 +1409,29 @@ function setupAudioRecognition(audioStream) {
     }
 }
 
-// 新增：监听来自ASR iframe的消息
+// 添加消息监听器，处理来自ASR iframe的控制命令
 window.addEventListener('message', function(event) {
-    // 根据需要验证消息来源
-    // if (event.origin !== expectedOrigin) return;
+    // 校验消息来源和类型
+    if (!event.data || typeof event.data !== 'object') return;
     
-    if (event.data && event.data.type === 'digital_human_asr_ready') {
+    // 处理重置流ID的消息
+    if (event.data.type === 'reset_streaming_id' && event.data.source === 'asr_iframe') {
+        console.log('收到ASR iframe发来的重置流ID消息');
+        // 重置当前流ID变量
+        window.currentStreamingId = null;
+        window.lastUserMessageTimestamp = Date.now(); // 更新最后用户消息时间戳
+        console.log('已重置window.currentStreamingId和更新window.lastUserMessageTimestamp');
+    }
+    
+    // 处理来自ASR框架的其他消息
+    if (event.data.type === 'digital_human_audio') {
+        // 处理数字人音频数据...
+        // 这段代码保持原样
+    } else if (event.data.type === 'digital_human_asr_ready') {
         console.log("ASR iframe准备就绪，可开始传输数字人音频数据");
-    } else if (event.data && event.data.type === 'asr_ready') {
+    } else if (event.data.type === 'asr_ready') {
         console.log("ASR iframe已准备好接收音量数据");
-    } else if (event.data && event.data.type === 'asr_result') {
+    } else if (event.data.type === 'asr_result') {
         // 处理ASR结果
         if (event.data.text) {
             onASRResult(event.data.text);
@@ -1159,7 +1445,7 @@ window.addEventListener('message', function(event) {
  */
 function initializeASRIframe(sessionId) {
     console.log(`初始化ASR iframe，会话ID: ${sessionId}`);
-    
+
     // 设置会话ID
     asrSessionId = sessionId;
     
@@ -1272,5 +1558,112 @@ function sendControlToASRIframe(action, params = {}) {
         console.error(`向ASR iframe发送${action}命令时出错:`, e);
     }
 }
+
+// 添加页面生命周期事件处理，确保在页面关闭或刷新时清理资源
+window.addEventListener('beforeunload', function(event) {
+    // 如果有未保存的数据，可以提示用户
+    // 在某些浏览器中，返回一个非空字符串会显示确认对话框
+    // 但现代浏览器出于安全考虑，大多忽略自定义消息
+    if (isWebSocketConnected || (pc && pc.connectionState !== 'closed')) {
+        const message = '您有正在进行的会话，离开页面将会中断连接。确定要离开吗？';
+        event.returnValue = message;  // 兼容 Chrome
+        return message;  // 兼容 Firefox
+    }
+    
+    // 无论如何都执行资源清理
+    cleanupResources();
+});
+
+window.addEventListener('unload', function() {
+    // 页面实际卸载时执行，不能阻止卸载过程
+    cleanupResources();
+});
+
+// 资源清理函数，在页面卸载前执行
+function cleanupResources(options = {}) {
+    console.log('执行资源清理...');
+    const { saveSessionData = false } = options;
+    
+    // 保存会话数据（如果需要）
+    if (saveSessionData) {
+        try {
+            const sessionData = {
+                sessionId: document.getElementById('sessionid').value,
+                timestamp: new Date().toISOString(),
+                messages: []
+            };
+            
+            // 获取聊天内容
+            const chatContent = document.getElementById('chat-content');
+            if (chatContent) {
+                // 保存聊天记录
+                const chatItems = chatContent.querySelectorAll('.chat-item');
+                chatItems.forEach(item => {
+                    const isSender = item.classList.contains('sender');
+                    const messageDiv = item.querySelector('div:not(img)');
+                    const message = messageDiv ? messageDiv.textContent : '';
+                    
+                    sessionData.messages.push({
+                        text: message,
+                        isSender
+                    });
+                });
+            }
+            
+            // 将会话数据保存到localStorage
+            localStorage.setItem('lastSessionData', JSON.stringify(sessionData));
+            console.log('会话数据已保存到localStorage');
+        } catch (e) {
+            console.error('保存会话数据失败:', e);
+        }
+    }
+    
+    // 关闭WebSocket连接
+    if (ws && isWebSocketConnected) {
+        console.log('正在关闭WebSocket连接...');
+        try {
+            ws.close();
+            isWebSocketConnected = false;
+        } catch (e) {
+            console.error('关闭WebSocket连接时出错:', e);
+        }
+    }
+    
+    // 关闭WebRTC连接
+    if (pc) {
+        console.log('正在关闭WebRTC连接...');
+        try {
+            // 停止所有轨道
+            if (videoElement && videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            // 关闭音频元素
+            const audioElement = document.getElementById('audio');
+            if (audioElement && audioElement.srcObject) {
+                const tracks = audioElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                audioElement.srcObject = null;
+            }
+            
+            // 关闭对等连接
+            pc.close();
+            console.log('WebRTC连接已关闭');
+        } catch (e) {
+            console.error('关闭WebRTC连接时出错:', e);
+        }
+    }
+    
+    console.log('资源清理完成');
+    return true;
+}
+
+// 添加主动保存会话的函数，可以在UI中调用
+window.saveAndCleanup = function() {
+    // 保存会话数据并清理资源
+    return cleanupResources({ saveSessionData: true });
+};
 
 

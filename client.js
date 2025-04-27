@@ -930,7 +930,11 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false) 
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    avatar.src = './static/text.png';
+    if (isSender) {
+        avatar.src = './static/text.png';
+    } else {
+        avatar.src = './static/szr.png';
+    }
     avatar.style.width = '24px';
     avatar.style.height = '24px';
     avatar.style.borderRadius = '50%';

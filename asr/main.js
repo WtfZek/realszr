@@ -217,18 +217,12 @@ window.addEventListener('message', function(event) {
 
 // 添加音频音量监测变量
 var lastAudioVolumeTime = 0;
-var lastLowVolumeTime = 0; // 上次检测到低音量的时间
 var audioVolumeThreshold = 20; // 音量阈值，可根据实际情况调整
 var audioCheckInterval = null;
 var audioContext = null;
 var audioAnalyser = null;
 var audioDataArray = null;
 var isAudioMonitoring = false;
-
-// 配置参数 - 可以通过UI或API调整
-var resumeDelay = 3000; // 低音量持续多长时间后恢复录音（毫秒）
-var volumeHistorySize = 5; // 保存多少个最近的音量样本
-var volumeHistory = []; // 最近音量样本的数组
 
 // 当识别结果更新时发送给父窗口
 function notifyResultUpdate(result) {
@@ -397,32 +391,6 @@ function handleExternalVolumeData(volumeData) {
     
     try {
         const averageVolume = volumeData.average || 0;
-        const now = Date.now();
-        
-        // 更新音量历史记录
-        volumeHistory.push({
-            volume: averageVolume,
-            timestamp: now
-        });
-        
-        // 保持历史记录大小限制
-        if (volumeHistory.length > volumeHistorySize) {
-            volumeHistory.shift();
-        }
-        
-        // 计算短期平均音量，减少瞬时波动的影响
-        let recentAvgVolume = 0;
-        let validSamples = 0;
-        
-        for (let i = volumeHistory.length - 1; i >= 0; i--) {
-            // 只考虑最近500ms内的样本
-            if (now - volumeHistory[i].timestamp < 500) {
-                recentAvgVolume += volumeHistory[i].volume;
-                validSamples++;
-            }
-        }
-        
-        recentAvgVolume = validSamples > 0 ? recentAvgVolume / validSamples : averageVolume;
         
         // 更新音量指示器
         var volumeBar = document.getElementById('audio-volume-bar');
@@ -439,38 +407,22 @@ function handleExternalVolumeData(volumeData) {
             }
         }
         
-        // 处理音量状态变化，添加缓冲逻辑
-        if (recentAvgVolume > audioVolumeThreshold) {
-            // 高音量状态 - 更新最后一次高音量时间
-            lastAudioVolumeTime = now;
-            lastLowVolumeTime = 0; // 重置低音量计时
-            
-            // 如果当前未暂停，则暂停录音
+        // console.log("当前音频音量:", averageVolume);
+        
+        // 根据音量暂停/恢复录音
+        if (averageVolume > audioVolumeThreshold) {
+            // 音量超过阈值，暂停录音
             if (!isRecordingPaused) {
                 window.pauseASRRecording();
-                console.log(`检测到持续高音量 (${recentAvgVolume.toFixed(1)}), 暂停语音识别`);
+                console.log("音量过高，暂停语音识别");
             }
-        } else {
-            // 低音量状态 - 只有在之前有高音量时才记录低音量开始时间
-            if (lastAudioVolumeTime > 0 && !lastLowVolumeTime) {
-                lastLowVolumeTime = now;
-                console.log(`检测到低音量 (${recentAvgVolume.toFixed(1)}), 开始计时 ${resumeDelay/1000}秒`);
-            }
-            
-            // 只有当持续低音量超过设定的延迟时间，才恢复录音
-            if (lastLowVolumeTime > 0 && (now - lastLowVolumeTime > resumeDelay) && isRecordingPaused) {
+            lastAudioVolumeTime = Date.now();
+        } else if (Date.now() - lastAudioVolumeTime > 1000) { 
+            // 音量低于阈值且持续1秒，恢复录音
+            if (isRecordingPaused) {
                 window.resumeASRRecording();
-                console.log(`低音量持续${resumeDelay/1000}秒，恢复语音识别`);
-                
-                // 重置计时器
-                lastLowVolumeTime = 0;
-                lastAudioVolumeTime = 0;
+                console.log("音量已恢复正常，继续语音识别");
             }
-        }
-        
-        // 添加调试日志，但限制频率以避免日志过多
-        if (now % 3000 < 100) { // 每3秒左右输出一次日志
-            console.log(`音量状态: 当前=${averageVolume.toFixed(1)}, 平均=${recentAvgVolume.toFixed(1)}, 暂停=${isRecordingPaused}, 高音量时间=${lastAudioVolumeTime ? (now-lastAudioVolumeTime)/1000 : 0}秒前, 低音量时间=${lastLowVolumeTime ? (now-lastLowVolumeTime)/1000 : 0}秒前`);
         }
     } catch (e) {
         console.error("音量数据处理出错:", e);
@@ -1539,9 +1491,6 @@ window.onload = function() {
     // 初始化音量控制
     initVolumeControls();
     
-    // 添加恢复延迟控制
-    addResumeDelayControl();
-    
     // 添加事件监听器
     if (btnStart) btnStart.onclick = record;
     if (btnStop) {
@@ -1589,91 +1538,5 @@ window.onload = function() {
     
     console.log("ASR页面初始化完成");
 };
-
-// 添加恢复延迟控制UI
-function addResumeDelayControl() {
-    const controlsContainer = document.querySelector('.control-section');
-    if (!controlsContainer) return;
-    
-    // 创建包装器
-    const wrapper = document.createElement('div');
-    wrapper.style.marginBottom = '10px';
-    
-    // 创建标签
-    const label = document.createElement('div');
-    label.style.display = 'flex';
-    label.style.justifyContent = 'space-between';
-    label.style.marginBottom = '5px';
-    
-    const titleSpan = document.createElement('span');
-    titleSpan.textContent = '恢复延迟时间 (秒)';
-    titleSpan.style.fontWeight = '500';
-    
-    const valueSpan = document.createElement('span');
-    valueSpan.id = 'resume-delay-value';
-    valueSpan.textContent = (resumeDelay / 1000).toFixed(1);
-    
-    label.appendChild(titleSpan);
-    label.appendChild(valueSpan);
-    
-    // 创建滑块
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = '0.5';
-    slider.max = '5';
-    slider.step = '0.5';
-    slider.value = resumeDelay / 1000;
-    slider.style.width = '100%';
-    slider.id = 'resume-delay-slider';
-    
-    // 加载保存的设置
-    try {
-        const savedDelay = localStorage.getItem('resume-delay');
-        if (savedDelay) {
-            const delayValue = parseFloat(savedDelay);
-            resumeDelay = delayValue * 1000;
-            slider.value = delayValue;
-            valueSpan.textContent = delayValue.toFixed(1);
-        }
-    } catch (e) {
-        console.error('加载恢复延迟设置失败:', e);
-    }
-    
-    // 添加滑块事件监听
-    slider.addEventListener('input', function() {
-        const value = parseFloat(this.value);
-        valueSpan.textContent = value.toFixed(1);
-        resumeDelay = value * 1000; // 转换为毫秒
-        
-        // 保存设置
-        try {
-            localStorage.setItem('resume-delay', value);
-        } catch (e) {
-            console.error('保存恢复延迟设置失败:', e);
-        }
-        
-        console.log(`恢复延迟已更新为: ${value}秒`);
-    });
-    
-    // 添加到DOM
-    wrapper.appendChild(label);
-    wrapper.appendChild(slider);
-    
-    // 添加描述
-    const description = document.createElement('div');
-    description.style.fontSize = '12px';
-    description.style.color = '#666';
-    description.style.marginTop = '5px';
-    description.textContent = '数字人停止说话后等待多长时间恢复语音识别';
-    
-    wrapper.appendChild(description);
-    
-    // 插入到控制区域
-    if (controlsContainer.firstChild) {
-        controlsContainer.insertBefore(wrapper, controlsContainer.firstChild);
-    } else {
-        controlsContainer.appendChild(wrapper);
-    }
-}
 
 

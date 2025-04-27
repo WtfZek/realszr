@@ -62,7 +62,7 @@ function connectWebSocket(sessionid) {
 
     // Create a new WebSocket connection
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//192.168.3.100:8018/ws?sessionid=${sessionid}`;
+    const wsUrl = `${protocol}//${window.host}/ws?sessionid=${sessionid}`;
     console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
     ws = new WebSocket(wsUrl);
 
@@ -150,7 +150,7 @@ function negotiate() {
         });
     }).then(() => {
         var offer = pc.localDescription;
-        return fetch('http://192.168.3.100:8018/offer', {
+        return fetch(`http://${window.host}/offer`, {
             body: JSON.stringify({
                 sdp: offer.sdp,
                 type: offer.type,
@@ -1173,7 +1173,7 @@ echoForm.addEventListener('submit', function(e) {
     console.log('sessionid:', document.getElementById('sessionid').value);
     
     // 发送消息到服务器
-    fetch('http://192.168.3.100:8018/human', {
+    fetch(`http://${window.host}/human`, {
         body: JSON.stringify({
             text: message,
             type: 'chat',

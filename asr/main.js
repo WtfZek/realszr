@@ -24,25 +24,62 @@ var rec = Recorder({
 var isRecordingPaused = false;
 var isRec = false; // 定义isRec变量，初始为false
 
+// 添加音频音量监测变量
+var lastAudioVolumeTime = 0; // 上次检测到高音量的时间
+var lastLowVolumeTime = 0; // 上次检测到低音量的时间
+var audioVolumeThreshold = 20; // 音量阈值，可根据实际情况调整
+var micMuteTimeout = null; // 麦克风静音超时计时器
+var audioCheckInterval = null;
+var audioContext = null;
+var audioAnalyser = null;
+var audioDataArray = null;
+var isAudioMonitoring = false;
+
+// 配置参数
+var micMuteDuration = 3000; // 麦克风静音持续时间(毫秒)
+var recoveryCheckInterval = 100; // 恢复检查间隔(毫秒)
+
+
+addMicMuteDurationControl();
+
 // 全局函数，允许从外部暂停ASR录音
 window.pauseASRRecording = function() {
     if (!isRecordingPaused && rec) {
-        console.log("ASR录音被外部暂停");
+        console.log("麦克风已暂时静音");
         isRecordingPaused = true;
         // 暂停录音处理但不关闭连接
         rec.pause();
-        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 检测到声音播放，语音识别已暂停</span>";
+        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 检测到声音播放，麦克风已临时静音</span>";
+        
+        // 设置自动恢复计时器
+        if (micMuteTimeout) {
+            clearTimeout(micMuteTimeout);
+        }
+        
+        micMuteTimeout = setTimeout(function() {
+            // 时间到后自动恢复
+            if (isRecordingPaused) {
+                window.resumeASRRecording();
+                console.log("麦克风静音时间结束，自动恢复");
+            }
+        }, micMuteDuration);
     }
 };
 
 // 全局函数，允许从外部恢复ASR录音
 window.resumeASRRecording = function() {
     if (isRecordingPaused && rec) {
-        console.log("ASR录音被外部恢复");
+        console.log("麦克风已恢复");
         isRecordingPaused = false;
         // 恢复录音处理
         rec.resume();
-        info_div.innerHTML = "<span style='color:#2ec4b6'>✓ 语音识别已恢复，可以说话了</span>";
+        info_div.innerHTML = "<span style='color:#2ec4b6'>✓ 麦克风已恢复，请说话...</span>";
+        
+        // 清除任何待处理的恢复计时器
+        if (micMuteTimeout) {
+            clearTimeout(micMuteTimeout);
+            micMuteTimeout = null;
+        }
     }
 };
 
@@ -215,15 +252,6 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// 添加音频音量监测变量
-var lastAudioVolumeTime = 0;
-var audioVolumeThreshold = 20; // 音量阈值，可根据实际情况调整
-var audioCheckInterval = null;
-var audioContext = null;
-var audioAnalyser = null;
-var audioDataArray = null;
-var isAudioMonitoring = false;
-
 // 当识别结果更新时发送给父窗口
 function notifyResultUpdate(result) {
     if (window.parent && window.parent !== window) {
@@ -297,7 +325,7 @@ function loadSavedSettings() {
     // 可以在这里添加其他设置的加载
 }
 
-// 初始化音量控制
+// 添加音量阈值控制UI和麦克风静音持续时间控制
 function initVolumeControls() {
     // 替换音量滑块逻辑为开关逻辑
     const thresholdToggle = document.getElementById('speaker-detection-toggle');
@@ -343,8 +371,92 @@ function initVolumeControls() {
         localStorage.setItem('volume-threshold', value);
     });
 
-    // 初始化手动暂停/恢复按钮
-    // ... existing code ...
+    // 添加麦克风静音时间控制
+}
+
+// 添加麦克风静音持续时间控制UI
+function addMicMuteDurationControl() {
+    const controlsContainer = document.querySelector('.control-section');
+    if (!controlsContainer) return;
+    
+    // 创建包装器
+    const wrapper = document.createElement('div');
+    wrapper.style.marginBottom = '10px';
+    
+    // 创建标签
+    const label = document.createElement('div');
+    label.style.display = 'flex';
+    label.style.justifyContent = 'space-between';
+    label.style.marginBottom = '5px';
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = '麦克风静音时间 (毫秒)';
+    titleSpan.style.fontWeight = '500';
+    
+    const valueSpan = document.createElement('span');
+    valueSpan.id = 'mute-duration-value';
+    valueSpan.textContent = micMuteDuration;
+    
+    label.appendChild(titleSpan);
+    label.appendChild(valueSpan);
+    
+    // 创建滑块
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '500';
+    slider.max = '3000';
+    slider.step = '100';
+    slider.value = micMuteDuration;
+    slider.style.width = '100%';
+    slider.id = 'mute-duration-slider';
+    
+    // 加载保存的设置
+    try {
+        const savedDuration = localStorage.getItem('mic-mute-duration');
+        if (savedDuration) {
+            micMuteDuration = parseInt(savedDuration);
+            slider.value = micMuteDuration;
+            valueSpan.textContent = micMuteDuration;
+        }
+    } catch (e) {
+        console.error('加载麦克风静音时间设置失败:', e);
+    }
+    
+    // 添加滑块事件监听
+    slider.addEventListener('input', function() {
+        const value = parseInt(this.value);
+        valueSpan.textContent = value;
+        micMuteDuration = value;
+        
+        // 保存设置
+        try {
+            localStorage.setItem('mic-mute-duration', value);
+        } catch (e) {
+            console.error('保存麦克风静音时间设置失败:', e);
+        }
+        
+        console.log(`麦克风静音时间已更新为: ${value}毫秒`);
+    });
+    
+    // 添加到DOM
+    wrapper.appendChild(label);
+    wrapper.appendChild(slider);
+    
+    // 添加描述
+    const description = document.createElement('div');
+    description.style.fontSize = '12px';
+    description.style.color = '#666';
+    description.style.marginTop = '5px';
+    description.textContent = '检测到声音时麦克风静音多长时间';
+    
+    wrapper.appendChild(description);
+    
+    // 插入到控制区域
+    if (controlsContainer.firstChild) {
+        controlsContainer.insertBefore(wrapper, controlsContainer.firstChild);
+    } else {
+        controlsContainer.appendChild(wrapper);
+    }
 }
 
 // 开始监测音频音量
@@ -391,6 +503,7 @@ function handleExternalVolumeData(volumeData) {
     
     try {
         const averageVolume = volumeData.average || 0;
+        const now = Date.now();
         
         // 更新音量指示器
         var volumeBar = document.getElementById('audio-volume-bar');
@@ -407,21 +520,24 @@ function handleExternalVolumeData(volumeData) {
             }
         }
         
-        // console.log("当前音频音量:", averageVolume);
-        
-        // 根据音量暂停/恢复录音
+        // 根据音量暂停/恢复录音 - 新的逻辑
         if (averageVolume > audioVolumeThreshold) {
-            // 音量超过阈值，暂停录音
+            // 检测到声音，暂时静音麦克风
+            lastAudioVolumeTime = now; // 记录上次高音量时间
+            
+            // 只有当麦克风未静音时才执行静音操作
             if (!isRecordingPaused) {
-                window.pauseASRRecording();
-                console.log("音量过高，暂停语音识别");
+                window.pauseASRRecording(); // 这会启动自动恢复计时器
+                console.log(`检测到声音输出 (${averageVolume.toFixed(1)}), 麦克风临时静音`);
             }
-            lastAudioVolumeTime = Date.now();
-        } else if (Date.now() - lastAudioVolumeTime > 1000) { 
-            // 音量低于阈值且持续1秒，恢复录音
-            if (isRecordingPaused) {
-                window.resumeASRRecording();
-                console.log("音量已恢复正常，继续语音识别");
+        } else {
+            // 低音量状态 - 如果当前被暂停且超过自动恢复时间，则恢复
+            if (isRecordingPaused && now - lastAudioVolumeTime > micMuteDuration) {
+                // 只有在自动计时器到期后才尝试恢复
+                if (!micMuteTimeout) {
+                    window.resumeASRRecording();
+                    console.log("检测到持续无声，恢复麦克风");
+                }
             }
         }
     } catch (e) {
@@ -800,7 +916,7 @@ function handleWithTimestamp(tmptext,tmptime)
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
 
 async function is_speaking() {
-	const response = await fetch('http://192.168.3.100:8018/is_speaking', {
+	const response = await fetch(`http://${window.parent.host}/is_speaking`, {
 		body: JSON.stringify({
 			sessionid: 0,
 		}),
@@ -826,7 +942,7 @@ async function waitSpeakingEnd() {
         // 等待数字人开始讲话，最长等待10秒
         for(let i = 0; i < maxWaitTime; i++) {
             try {
-                const response = await fetch('http://192.168.3.100:8018/is_speaking', {
+                const response = await fetch(`http://${window.parent.host}/is_speaking`, {
                     body: JSON.stringify({
                         sessionid: 0,
                     }),
@@ -877,7 +993,7 @@ async function waitSpeakingEnd() {
         
         while(true) {
             try {
-                const response = await fetch('http://192.168.3.100:8018/is_speaking', {
+                const response = await fetch(`http://${window.parent.host}/is_speaking`, {
                     body: JSON.stringify({
                         sessionid: 0,
                     }),
@@ -962,7 +1078,7 @@ function getJsonMessage( jsonMsg ) {
 
         onASRResult(rectxt.replace(/ +/g,""));
 
-		fetch('http://192.168.3.100:8018/human', {
+		fetch(`http://${window.parent.host}/human`, {
             body: JSON.stringify({
                 text: rectxt.replace(/ +/g,""),
                 type: 'chat',
@@ -1385,12 +1501,13 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false) 
     messageContainer.style.display = 'flex';
     messageContainer.style.alignItems = 'end';
     messageContainer.style.fontSize = '12px';
-    messageContainer.style.fontFamily = '宋体';
+    messageContainer.style.fontFamily = '隶书';
     messageContainer.style.border = '1px solid #dcdcdc';
     messageContainer.style.borderRadius = '8px';
     messageContainer.style.backgroundColor = '#ffffff';
     messageContainer.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
     messageContainer.style.padding = '10px';
+    messageContainer.style.lineHeight = '16px'; // 设置行高为16px，与12px的字体大小形成4px的行间距
     messageContainer.style.maxWidth = '80%'; // 限制消息容器的最大宽度
 
     // 添加消息文本
@@ -1458,7 +1575,7 @@ function onASRResult(result) {
     
     // 语音识别结果也发送到服务器
     const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
-    fetch('http://192.168.3.100:8018/human', {
+    fetch(`http://${window.parent.host}/human`, {
         body: JSON.stringify({
             text: result,
             type: 'chat',

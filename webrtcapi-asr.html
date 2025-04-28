@@ -357,6 +357,7 @@
             display: flex;
             align-items: center;
             margin-bottom: 16px;
+
         }
 
         .switch-container label {
@@ -651,7 +652,7 @@
             border-radius: var(--border-radius);
             z-index: 1002;
             padding: 0;
-            max-height: calc(100vh - 40px);
+            max-height: 100%; /* 修改为100% */
             overflow: hidden;
             /*transition: var(--transition);*/
         }
@@ -768,7 +769,7 @@
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease;
-            z-index: 1002;
+            z-index: 1003;
             outline: none;
             display: none;
         }
@@ -841,7 +842,7 @@
             
             #voice-recognition-button svg {
                 width: 35px;
-                height: 35px;
+                height: 120px;
             }
         }
         
@@ -860,6 +861,37 @@
             #voice-recognition-button.recording {
                 transform: scale(0.95);
             }
+        }
+
+        /* 手机端对话框底部居中样式 */
+        @media (max-width: 768px) {
+            #chat-modal {
+                left: 0 !important;
+                right: 0 !important;
+                top: auto !important;
+                bottom: 120px !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: 160px !important;
+                max-height: 20vh !important;
+                border-radius: 16px 16px 0 0 !important;
+                padding-bottom: env(safe-area-inset-bottom, 0); /* 兼容iPhone X底部安全区 */
+                box-shadow: 0 -2px 16px rgba(0,0,0,0.12);
+
+            }
+            #chat-modal .modal-scroll-container {
+                padding: 10px 8px 8px 8px;
+                max-height: 100%;
+            }
+        }
+        #info_div {
+            margin-bottom: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            background-color: rgba(67, 97, 238, 0.1);
         }
     </style>
 </head>
@@ -946,7 +978,7 @@
 
             <!-- 基础控制标签页 -->
             <div id="tab-main" class="tab-content active">
-                <div class="modal-section">
+                <div class="modal-section" style="">
                     <div class="section-title">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
@@ -984,7 +1016,32 @@
                     <input type="hidden" id="sessionid" value="0">
                 </div>
 
-                <div class="modal-section">
+                <div class="modal-section" style="">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                        </svg>
+                        建立连接
+                    </div>
+                    <div id="info_div">点击按钮开始建立远控链接</div>
+                    <div class="button-group">
+                        <button id="connect-ws-btn" class="btn-success" onclick="connectToOCServer()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            建立连接
+                        </button>
+                        <button id="disconnect-ws-btn" class="btn-warning" onclick="">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            断开连接
+                        </button>
+                    </div>
+                    <input type="hidden" id="sessionid" value="0">
+                </div>
+
+                <div class="modal-section" style="display: none;">
                     <div class="section-title">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -1039,6 +1096,30 @@
                         </button>
                     </form>
                 </div>
+
+                <div class="modal-section">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <!-- 头部（数字人） -->
+                            <circle cx="12" cy="8" r="4" />
+                            <!-- 脸部AI芯片风格 -->
+                            <rect x="10.5" y="6.5" width="3" height="3" rx="1" fill="none" stroke="#4361ee" stroke-width="1"/>
+                            <!-- 身体 -->
+                            <path d="M6 20v-2a6 6 0 0 1 12 0v2" />
+                            <!-- 电子/数字感的点缀 -->
+                            <circle cx="5" cy="7" r="1" fill="#4361ee"/>
+                            <circle cx="19" cy="7" r="1" fill="#4361ee"/>
+                            <circle cx="12" cy="20" r="1" fill="#4361ee"/>
+                          </svg>
+                        人设控制
+                    </div>
+                    <div id="basic-control">
+                        <!-- 输入框 -->
+                        <textarea class="form-control" type="text" id="config-select" placeholder="配置内容"></textarea>
+                        <!-- 提交按钮 -->
+                        <button style="margin: 10px 10px 10px 0" id="submit-config">提交</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 外观设置标签页 -->
@@ -1063,6 +1144,35 @@
                             </label>
                             <input type="file" id="backgroundUpload" accept="image/*">
                         </div>
+                    </div>
+                </div>
+
+                
+                <!-- UI设置 -->
+                <div class="modal-section">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="12" cy="12" r="6"></circle>
+                        </svg>
+                        UI设置
+                    </div>
+                    <div class="form-group">
+                        <label for="uiAutoHideSwitch">启用自动隐藏UI控件</label>
+                        <div class="switch-container">
+                            <label class="switch">
+                                <input type="checkbox" id="uiAutoHideSwitch" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="uiAutoHideDelay">自动隐藏等待时间（毫秒）</label>
+                        <div class="range-container">
+                            <input type="range" id="uiAutoHideDelay" min="500" max="15000" value="15000">
+                            <input type="number" class="range-value" id="uiAutoHideDelayValue" min="500" max="15000" value="15000">
+                        </div>
+                        <div style="font-size:12px;color:#888;margin-top:4px;">范围：0.5秒 ~ 15秒</div>
                     </div>
                 </div>
 
@@ -1390,8 +1500,6 @@
             </div>
         </div>
     </div>
-
-
 
 </div>
     <script src="config.js"></script>
@@ -3178,6 +3286,7 @@
                     chatModal.style.transform = 'none';
                     chatModal.style.bottom = 'auto'; // 清除bottom值，使top生效
                     chatModal.style.right = 'auto'; // 清除right值
+                    chatModal.style.height = '100%'; // 设置高度为100%
                 } else {
                     // 桌面设备也设置为左上角
                     chatModal.style.left = '90px';
@@ -3185,6 +3294,7 @@
                     chatModal.style.transform = 'none';
                     chatModal.style.bottom = 'auto';
                     chatModal.style.right = 'auto';
+                    chatModal.style.height = '100%'; // 设置高度为100%
                 }
             }
             
@@ -3238,7 +3348,7 @@
                     
                     // 高度
                     let savedChatHeight = localStorage.getItem('chatHeight');
-                    if (savedChatHeight === null) savedChatHeight = 60;
+                    if (savedChatHeight === null) savedChatHeight = 100; // 默认高度100%
                     chatHeightSlider.value = savedChatHeight;
                     chatHeightValue.value = savedChatHeight;
                     
@@ -3355,6 +3465,7 @@
                             chatModal.style.top = '20px';
                             chatModal.style.bottom = 'auto';
                             chatModal.style.transform = 'none';
+                            chatModal.style.height = '100%'; // 设置高度为100%
                             break;
                         case 'right':
                             chatXPositionValue.value = 100;
@@ -3860,6 +3971,127 @@
             positionLeftBottom.addEventListener('click', function() {
                 positionDigitalHuman('leftBottom', 0.4); // 使用1.5倍速动画
             });
+
+            // ========== UI自动隐藏相关 ========== //
+            // 控件ID
+            const autoHideElements = [
+                document.getElementById('show-chat-modal'),
+                document.getElementById('settings-button'),
+                document.getElementById('voice-recognition-button')
+            ];
+            const canvasStatus = document.getElementById('canvas-status');
+            // UI设置控件
+            const uiAutoHideSwitch = document.getElementById('uiAutoHideSwitch');
+            const uiAutoHideDelay = document.getElementById('uiAutoHideDelay');
+            const uiAutoHideDelayValue = document.getElementById('uiAutoHideDelayValue');
+
+            // 默认参数
+            let autoHideEnabled = true;
+            let autoHideDelay = 15000;
+            let canvasStatusTimer = null;
+            let autoHideTimers = {};
+
+            // 读取本地存储
+            if(localStorage.getItem('uiAutoHideEnabled')!==null) {
+                autoHideEnabled = localStorage.getItem('uiAutoHideEnabled') === 'true';
+                uiAutoHideSwitch.checked = autoHideEnabled;
+            }
+            if(localStorage.getItem('uiAutoHideDelay')) {
+                autoHideDelay = parseInt(localStorage.getItem('uiAutoHideDelay'));
+                uiAutoHideDelay.value = autoHideDelay;
+                uiAutoHideDelayValue.value = autoHideDelay;
+            }
+
+            // 联动滑动条和输入框
+            uiAutoHideDelay.addEventListener('input', function() {
+                uiAutoHideDelayValue.value = this.value;
+                autoHideDelay = parseInt(this.value);
+                localStorage.setItem('uiAutoHideDelay', autoHideDelay);
+                resetAllAutoHideTimers();
+            });
+            uiAutoHideDelayValue.addEventListener('input', function() {
+                let v = parseInt(this.value);
+                if(isNaN(v)) v = 15000;
+                if(v < 500) v = 500;
+                if(v > 15000) v = 15000;
+                this.value = v;
+                uiAutoHideDelay.value = v;
+                autoHideDelay = v;
+                localStorage.setItem('uiAutoHideDelay', autoHideDelay);
+                resetAllAutoHideTimers();
+            });
+            uiAutoHideSwitch.addEventListener('change', function() {
+                autoHideEnabled = this.checked;
+                localStorage.setItem('uiAutoHideEnabled', autoHideEnabled);
+                if(autoHideEnabled) {
+                    resetAllAutoHideTimers();
+                } else {
+                    showAllAutoHideElements();
+                }
+            });
+
+            // 自动隐藏通用逻辑
+            function showAllAutoHideElements() {
+                autoHideElements.forEach(el => { if(el) el.style.opacity = 1; });
+                if(canvasStatus) canvasStatus.style.opacity = 1;
+            }
+            function hideAllAutoHideElements() {
+                autoHideElements.forEach(el => { if(el) el.style.opacity = 0; });
+                if(canvasStatus) canvasStatus.style.opacity = 0;
+            }
+            function resetAllAutoHideTimers() {
+                if(!autoHideEnabled) { showAllAutoHideElements(); return; }
+                autoHideElements.forEach(el => resetAutoHideTimer(el));
+                resetCanvasStatusTimer();
+            }
+            // ========== show-chat-modal/settings-button/voice-recognition-button ========== //
+            function resetAutoHideTimer(el) {
+                if(!autoHideEnabled) { el.style.opacity = 1; return; }
+                if(autoHideTimers[el.id]) clearTimeout(autoHideTimers[el.id]);
+                el.style.opacity = 1;
+                autoHideTimers[el.id] = setTimeout(()=>{
+                    el.style.opacity = 0;
+                }, autoHideDelay);
+            }
+            // 绑定事件：鼠标/触摸进入/点击/移动/按下/抬起都重置
+            autoHideElements.forEach(el => {
+                ['mouseover','mousemove','mousedown','mouseup','touchstart','touchmove','touchend','click'].forEach(evt=>{
+                    el.addEventListener(evt, ()=>resetAutoHideTimer(el));
+                });
+            });
+            // 页面全局点击/触摸也重置
+            document.addEventListener('click', ()=>{
+                autoHideElements.forEach(el=>resetAutoHideTimer(el));
+            });
+            document.addEventListener('touchstart', ()=>{
+                autoHideElements.forEach(el=>resetAutoHideTimer(el));
+            });
+            // ========== canvas-status特殊逻辑 ========== //
+            function resetCanvasStatusTimer() {
+                if(!autoHideEnabled) { if(canvasStatus) canvasStatus.style.opacity = 1; return; }
+                if(canvasStatusTimer) clearTimeout(canvasStatusTimer);
+                if(canvasStatus) canvasStatus.style.opacity = 1;
+                canvasStatusTimer = setTimeout(()=>{
+                    if(canvasStatus) canvasStatus.style.opacity = 0;
+                }, autoHideDelay);
+            }
+            // 只要按下空格或Alt就重置
+            document.addEventListener('keydown', function(e) {
+                if(e.code==='Space'||e.key==='Alt') resetCanvasStatusTimer();
+            });
+            // 页面加载后立即启动
+            if(autoHideEnabled) {
+                resetAllAutoHideTimers();
+            }
+            // ========== 只要显示/切换tab/显示设置面板/显示聊天面板时都重置 ========== //
+            const settingsButtonAutoHide = document.getElementById('settings-button');
+            if(settingsButtonAutoHide) settingsButtonAutoHide.addEventListener('click', resetAllAutoHideTimers);
+            const showChatModalButtonAutoHide = document.getElementById('show-chat-modal');
+            if(showChatModalButtonAutoHide) showChatModalButtonAutoHide.addEventListener('click', resetAllAutoHideTimers);
+            // 标签页切换
+            document.querySelectorAll('.tab-button').forEach(btn=>{
+                btn.addEventListener('click', resetAllAutoHideTimers);
+            });
         });
     </script>
     
@@ -4004,6 +4236,68 @@
                 resetOpacity();
             });
         });
+
+        // 获取下拉框和提交按钮元素
+        const configSelect = document.getElementById('config-select');
+        const submitButton = document.getElementById('submit-config');
+
+        // 获取下拉框选项
+        async function getConfigOptions() {
+            try {
+                const response = await fetch(`http://${window.host}/get_config`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        sessionid: parseInt(document.getElementById('sessionid').value),
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('网络响应异常');
+                }
+                const data = await response.json();
+                console.log(data);
+                
+                // 将获取到的数据设置到输入框中
+                if (data && data.data) {
+                    document.getElementById('config-select').value = data.data;
+                }
+            } catch (error) {
+                console.error('获取配置选项时出错:', error);
+            }
+        }
+
+        // 处理提交按钮点击事件
+        async function submitConfig() {
+            const text = document.getElementById('config-select').value;
+            try {
+                const response = await fetch(`http://${window.host}/set_config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        sessionid: parseInt(document.getElementById('sessionid').value),
+                    }),
+
+                });
+                if (!response.ok) {
+                    throw new Error('网络响应异常');
+                }
+                console.log('配置提交成功');
+            } catch (error) {
+                console.error('提交配置时出错:', error);
+            }
+            getConfigOptions();
+        }
+
+        // 页面加载完成后获取下拉框选项
+        // window.addEventListener('load', getConfigOptions);
+
+        // 绑定提交按钮点击事件
+        submitButton.addEventListener('click', submitConfig);
     </script>
     <script>
         
@@ -4016,6 +4310,129 @@
             }
         }
         
-        </script>
+
+        let originControllerSocket = null;
+
+        document.getElementById('connect-ws-btn').addEventListener('click', () => {
+            connectToOCServer();
+        });
+        
+        // 断开连接按钮点击事件
+        document.getElementById('disconnect-ws-btn').addEventListener('click', () => {
+            if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
+                // 请求服务器断开连接
+                disconnectFromServer();
+            }
+        });
+
+
+        // 连接到服务器
+        function connectToOCServer() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
+            const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
+            
+            // 关闭现有连接
+            if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
+                originControllerSocket.close();
+            }
+            
+            originControllerSocket = new WebSocket(wsUrl);
+
+            const statusElement = document.getElementById('info_div');
+            
+            originControllerSocket.onopen = () => {
+                addMessage('系统', '正在连接到服务器...', 'system');
+                statusElement.textContent = '状态: 正在连接...';
+                // statusElement.className = 'status';
+            };
+            
+            originControllerSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'connected') {
+                    clientId = data.client_id;
+                    console.log('已连接到服务器，客户机ID:', clientId);
+                    // clientIdElement.textContent = clientId;
+                    // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
+                    statusElement.textContent = '状态: 已连接'+`已连接到服务器，客户机ID:${clientId}`;
+                    // statusElement.className = 'status status-connected';
+                } else if (data.type === 'disconnecting') {
+                    // addMessage('系统', '正在断开与服务器的连接...', 'system');
+                    statusElement.textContent = '正在断开与服务器的连接...';
+                } else if (data.type === 'message') {
+                    // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
+                    statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
+
+                    console.log("data.message",data.message)
+
+                    addChatMessage(data.message, 'right', false, false);
+
+                    // 更新最后一次用户消息的时间戳
+                    window.lastUserMessageTimestamp = Date.now();
+
+                    // 用户发送新消息后，强制重置当前流ID
+                    window.currentStreamingId = null;
+
+                    console.log('发送消息:', message);
+                    console.log('sessionid:', document.getElementById('sessionid').value);
+
+                    // 发送消息到服务器
+                    fetch(`http://${window.host}/human`, {
+                        body: JSON.stringify({
+                            text: data.message,
+                            type: 'chat',
+                            interrupt: true,
+                            sessionid: parseInt(document.getElementById('sessionid').value),
+                        }),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        method: 'POST'
+                    })
+                        .then(response => {
+                            if (!response.ok) {
+                                console.error('发送消息失败:', response.status);
+                                // 可以在聊天窗口中添加错误提示
+                                addChatMessage('消息发送失败，请重试', 'left', false);
+                            }
+                            return response.text().catch(() => null);
+                        })
+                        .catch(error => {
+                            console.error('请求发生错误:', error);
+                            // 可以在聊天窗口中添加错误提示
+                            addChatMessage('网络错误，请检查连接', 'left', false);
+                        });
+                }
+            };
+            
+            originControllerSocket.onclose = () => {
+                // addMessage('系统', '与服务器的连接已关闭', 'system');
+                statusElement.textContent = '状态: 未连接';
+                // statusElement.className = 'status status-disconnected';
+                // clientIdElement.textContent = '未分配';
+                clientId = null;
+            };
+            
+            originControllerSocket.onerror = (error) => {
+                // addMessage('系统', '连接错误', 'system');
+                statusElement.textContent = '状态: 连接错误';
+                console.error('WebSocket错误:', error);
+            };
+        }
+        
+        function disconnectFromServer() {
+            originControllerSocket.send(JSON.stringify({ disconnect: true }));
+        }
+        
+        // 添加消息到消息容器
+        // function addMessage(sender, text, type) {
+        //     const messageElement = document.createElement('div');
+        //     messageElement.className = `message ${type}`;
+        //     messageElement.innerHTML = `<strong>${sender}:</strong> ${text}`;
+        //     messageContainer.appendChild(messageElement);
+        //     messageContainer.scrollTop = messageContainer.scrollHeight;
+        // }
+    </script>
 </body>
 </html>

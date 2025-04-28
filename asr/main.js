@@ -915,134 +915,20 @@ function handleWithTimestamp(tmptext,tmptime)
 
 const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
 
-async function is_speaking() {
-	const response = await fetch(`http://${window.parent.host}/is_speaking`, {
-		body: JSON.stringify({
-			sessionid: 0,
-		}),
-		headers: {
-			'Content-Type': 'application/json'
-		},
-		method: 'POST'
-	  });
-	const data = await response.json();
-	console.log('is_speaking res:',data);
-	return data.data;
+async function waitSpeakingEnd() {
+    // 简化函数，跳过等待数字人响应的过程
+    console.log("跳过等待数字人响应过程");
+    
+    // 如果正在暂停状态，立即恢复录音
+    if(isRecordingPaused) {
+        rec.resume();
+        isRecordingPaused = false;
+        info_div.innerHTML = '<span style="color:#2ec4b6">✓ 录音已恢复，请说话...</span>';
+    }
+    
+    return;
 }
 
-async function waitSpeakingEnd() {
-    try {
-        console.log("暂停录音，等待数字人响应");
-        rec.pause(); // 暂停录音而不是停止
-        isRecordingPaused = true;
-        
-        let speakingDetected = false;
-        let maxWaitTime = 10; // 最大等待时间（秒）
-        
-        // 等待数字人开始讲话，最长等待10秒
-        for(let i = 0; i < maxWaitTime; i++) {
-            try {
-                const response = await fetch(`http://${window.parent.host}/is_speaking`, {
-                    body: JSON.stringify({
-                        sessionid: 0,
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                });
-                
-                if(!response.ok) {
-                    console.error("检查说话状态失败:", response.status);
-                    break;
-                }
-                
-                const data = await response.json();
-                console.log('is_speaking res:', data);
-                
-                if(data.data === true) {
-                    speakingDetected = true;
-                    info_div.innerHTML = '<span style="color:#4361ee">🔄 数字人正在回应...</span>';
-                    break;
-                }
-                
-                await sleep(1000);
-            } catch(e) {
-                console.error("检查说话状态出错:", e);
-                break;
-            }
-        }
-        
-        if (!speakingDetected) {
-            console.log("未检测到数字人说话，恢复录音");
-            rec.resume();
-            isRecordingPaused = false;
-            info_div.innerHTML = '<span style="color:#ff9f1c">⚠️ 未检测到数字人响应，已恢复录音</span>';
-            return;
-        }
-        
-        // 等待数字人讲话结束，设置超时保护
-        let waitEndTimeout = setTimeout(() => {
-            console.log("等待数字人结束说话超时");
-            if(isRecordingPaused) {
-                rec.resume();
-                isRecordingPaused = false;
-                info_div.innerHTML = '<span style="color:#2ec4b6">✓ 录音已恢复，请说话...</span>';
-            }
-        }, 30000); // 30秒超时保护
-        
-        while(true) {
-            try {
-                const response = await fetch(`http://${window.parent.host}/is_speaking`, {
-                    body: JSON.stringify({
-                        sessionid: 0,
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    method: 'POST'
-                });
-                
-                if(!response.ok) {
-                    console.error("检查说话结束状态失败:", response.status);
-                    break;
-                }
-                
-                const data = await response.json();
-                
-                if(data.data === false) {
-                    console.log("数字人已停止说话");
-                    break;
-                }
-                
-                await sleep(1000);
-            } catch(e) {
-                console.error("检查说话结束状态出错:", e);
-                break;
-            }
-        }
-        
-        clearTimeout(waitEndTimeout);
-        
-        // 等待一小段时间再恢复录音
-        await sleep(1000);
-        
-        // 恢复录音
-        if(isRecordingPaused) {
-            rec.resume();
-            isRecordingPaused = false;
-            info_div.innerHTML = '<span style="color:#2ec4b6">✓ 数字人回应完毕，录音已恢复，请说话...</span>';
-        }
-    } catch(e) {
-        console.error("waitSpeakingEnd 函数出错:", e);
-        // 确保出错时也能恢复录音
-        if(isRecordingPaused) {
-            rec.resume();
-            isRecordingPaused = false;
-            info_div.innerHTML = '<span style="color:#ff9f1c">⚠️ 出现错误，录音已恢复</span>';
-        }
-    }
-}
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 // 语音识别结果; 对jsonMsg数据解析,将识别结果附加到编辑框中
 function getJsonMessage( jsonMsg ) {
@@ -1066,7 +952,8 @@ function getJsonMessage( jsonMsg ) {
 
 	if(asrmodel=="2pass-offline" || asrmodel=="offline")
 	{
-		offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
+		// offline_text=offline_text+rectxt.replace(/ +/g,"")+'\n'; //handleWithTimestamp(rectxt,timestamp); //rectxt; //.replace(/ +/g,"");
+        offline_text = rectxt.replace(/ +/g,"")+'\n';
 		rec_text=offline_text;
 
         // 获取当前时间
@@ -1075,41 +962,32 @@ function getJsonMessage( jsonMsg ) {
             now.getMinutes().toString().padStart(2, '0') + ':' +
             now.getSeconds().toString().padStart(2, '0');
 
+        // 在发送请求前暂停麦克风录音 - 与音量检测使用相同的麦克风静音时间
+        if (!isRecordingPaused && rec) {
+            console.log("发送消息，麦克风临时静音");
+            isRecordingPaused = true;
+            // 暂停录音处理但不关闭连接
+            rec.pause();
+            info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 正在处理您的请求，麦克风已临时静音</span>";
+            
+            // 设置自动恢复计时器
+            if (micMuteTimeout) {
+                clearTimeout(micMuteTimeout);
+            }
+            
+            micMuteTimeout = setTimeout(function() {
+                // 时间到后自动恢复
+                if (isRecordingPaused) {
+                    window.resumeASRRecording();
+                    console.log("麦克风静音时间结束，自动恢复");
+                }
+            }, micMuteDuration);
+        }
 
         onASRResult(rectxt.replace(/ +/g,""));
 
-		fetch(`http://${window.parent.host}/human`, {
-            body: JSON.stringify({
-                text: rectxt.replace(/ +/g,""),
-                type: 'chat',
-                interrupt: false,
-                sessionid: parseInt(window.parent.document.getElementById('sessionid').value), // 默认会话ID，如果需要可以从页面获取
-            }),
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: 'POST'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    console.error('后端响应错误:', response.status);
-                    info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
-                } else {
-                    console.log('识别文本发送成功');
-                    info_div.innerHTML = '<span style="color:#2ec4b6">✓ 文本已发送 [' + timeString + ']</span>';
-                }
-                return response.json().catch(e => null);
-            })
-            .then(data => {
-                if (data) console.log('后端返回数据:', data);
-            })
-            .catch(error => {
-                console.error('请求失败:', error);
-                info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
-            });
-
-        // 不再等待数字人响应
-        // waitSpeakingEnd();
+		// 注释掉聊天消息显示以减少资源消耗
+		// addChatMessage(rectxt.replace(/ +/g,""), 'right', false);
 	}
 	else
 	{
@@ -1263,7 +1141,7 @@ window.stop = function() {
  
     // 控件状态更新
     isRec = false;
-    info_div.innerHTML='<span style="color:#4361ee">🔄 正在处理识别结果，请稍候...</span>';
+    info_div.innerHTML='<span style="color:#4361ee">ℹ️ 识别已停止，点击"连接"重新开始</span>';
 
     // 停止音频监测
     stopAudioMonitoring();
@@ -1271,15 +1149,11 @@ window.stop = function() {
     if(isfilemode == false) {
         btnStop.disabled = true;
         btnStart.disabled = true;
-        btnConnect.disabled = true;
+        btnConnect.disabled = false;
         
-        //wait 3s for asr result
-        setTimeout(function() {
-            console.log("关闭WebSocket连接");
-            wsconnecter.wsStop();
-            btnConnect.disabled = false;
-            info_div.innerHTML='<span style="color:#4361ee">ℹ️ 识别已停止，点击"连接"重新开始</span>';
-        }, 3000);
+        // 立即关闭WebSocket连接，不等待3秒
+        console.log("立即关闭WebSocket连接");
+        wsconnecter.wsStop();
         
         rec.stop(function(blob, duration) {
             console.log("录音数据:", blob);
@@ -1400,7 +1274,7 @@ function recProcess(buffer, powerLevel, bufferDuration, bufferSampleRate, newBuf
         var data_16k = Recorder.SampleData(array_48k, bufferSampleRate, 16000).data;
  
 		sampleBuf = Int16Array.from([...sampleBuf, ...data_16k]);
-        var chunk_size = 960; // for asr chunk_size [5, 10, 5]
+        var chunk_size = 2048; // for asr chunk_size [5, 10, 5]
         info_div.innerHTML = "" + bufferDuration/1000 + "s";
         while(sampleBuf.length >= chunk_size) {
             sendBuf = sampleBuf.slice(0, chunk_size);
@@ -1542,9 +1416,31 @@ function onASRResult(result) {
         return;
     }
     
+    // 在处理ASR结果前暂停麦克风录音
+    if (!isRecordingPaused && rec) {
+        console.log("发送消息，麦克风临时静音");
+        isRecordingPaused = true;
+        // 暂停录音处理但不关闭连接
+        rec.pause();
+        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 正在处理您的请求，麦克风已临时静音</span>";
+        
+        // 设置自动恢复计时器
+        if (micMuteTimeout) {
+            clearTimeout(micMuteTimeout);
+        }
+        
+        micMuteTimeout = setTimeout(function() {
+            // 时间到后自动恢复
+            if (isRecordingPaused) {
+                window.resumeASRRecording();
+                console.log("麦克风静音时间结束，自动恢复");
+            }
+        }, micMuteDuration);
+    }
+    
     // 将识别结果作为右侧消息显示（用户说的话）
-    // currentSystemMessageId = null;
-    addChatMessage(result, 'right', false);
+    // 注释掉聊天消息显示以减少资源消耗
+    // addChatMessage(result, 'right', false);
     
     console.log('发送ASR识别结果:', result);
     
@@ -1573,23 +1469,43 @@ function onASRResult(result) {
         }
     }
     
-    // 语音识别结果也发送到服务器
-    const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
-    fetch(`http://${window.parent.host}/human`, {
-        body: JSON.stringify({
-            text: result,
-            type: 'chat',
-            interrupt: true,
-            sessionid: sessionId,
-        }),
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        method: 'POST'
-    })
-    .catch(error => {
-        console.error('发送ASR结果失败:', error);
-    });
+    // 注释掉发送请求以减少资源消耗
+    // const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
+    // fetch(`http://${window.parent.host}/human`, {
+    //     body: JSON.stringify({
+    //         text: result,
+    //         type: 'chat',
+    //         interrupt: true,
+    //         sessionid: sessionId,
+    //     }),
+    //     headers: {
+    //         'Content-Type': 'application/json'
+    //     },
+    //     method: 'POST'
+    // })
+    // .then(response => {
+    //     if (!response.ok) {
+    //         console.error('后端响应错误:', response.status);
+    //         info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+    //     } else {
+    //         console.log('识别文本发送成功');
+    //         // 保持麦克风静音状态，由计时器自动恢复
+    //     }
+    //     return response.json().catch(e => null);
+    // })
+    // .then(data => {
+    //     if (data) console.log('后端返回数据:', data);
+    // })
+    // .catch(error => {
+    //     console.error('请求失败:', error);
+    //     info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+    //     
+    //     // 如果请求失败，也考虑恢复麦克风
+    //     if (isRecordingPaused && micMuteTimeout) {
+    //         clearTimeout(micMuteTimeout);
+    //         window.resumeASRRecording();
+    //     }
+    // });
 }
 
 // 页面初始化

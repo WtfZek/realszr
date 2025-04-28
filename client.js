@@ -160,6 +160,8 @@ function negotiate() {
             },
             method: 'POST'
         });
+        
+        // 页面加载完成后获取下拉框选项
     }).then((response) => {
         return response.json();
     }).then((answer) => {
@@ -173,10 +175,13 @@ function negotiate() {
         console.log(`从服务器获取到sessionId: ${sessionId}，开始建立WebSocket连接`);
         connectWebSocket(sessionId);
         
+        getConfigOptions();
+        
         return pc.setRemoteDescription(answer);
     }).catch((e) => {
         alert(e);
     });
+
 }
 
 function start() {
@@ -731,7 +736,7 @@ const chatContent = document.getElementById('chat-content');
  *   - 'right' 或 true: 显示在右侧（发送者）
  * @param {boolean} isStreaming - 是否为流式消息，默认为false
  */
-function addChatMessage(message, position, isStreaming = false) {
+function addChatMessage(message, position, isStreaming = false , isText = true) {
 
     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
     // 'left' 或 false 表示左侧消息（接收者）
@@ -793,7 +798,7 @@ function addChatMessage(message, position, isStreaming = false) {
             }
         } else {
             // 非流式消息，强制创建新的聊天项
-            createNewChatItem(chatContent, message, isSender, false);
+            createNewChatItem(chatContent, message, isSender, false, isText);
             // 非流式消息后，重置当前流ID
             window.currentStreamingId = null;
         }
@@ -915,7 +920,7 @@ function updateChatItemWithTypingEffect(chatItem, message) {
  * @param {boolean} isStreaming - 是否为流式消息
  * @returns {HTMLElement} - 创建的聊天项元素
  */
-function createNewChatItem(chatContent, message, isSender, isStreaming = false) {
+function createNewChatItem(chatContent, message, isSender, isStreaming = false, isText) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -930,8 +935,10 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false) 
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    if (isSender) {
+    if (isSender && isText) {
         avatar.src = './static/text.png';
+    } else if (isSender && !isText)  {
+        avatar.src = './static/audio.png';
     } else {
         avatar.src = './static/szr.png';
     }
@@ -1670,4 +1677,33 @@ window.saveAndCleanup = function() {
     return cleanupResources({ saveSessionData: true });
 };
 
-
+// 获取下拉框选项
+async function getConfigOptions() {
+    try {
+        console.log(`http://${window.host}/get_config`+`已发送`);
+        const response = await fetch(`http://${window.host}/get_config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                sessionid: parseInt(document.getElementById('sessionid').value),
+            }),
+        });
+        if (!response.ok) {
+            throw new Error('网络响应异常');
+        }
+        const data = await response.json();
+        // 清空下拉框原有选项
+        configSelect.innerHTML = '';
+        // 添加新选项
+        data.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option;
+            optionElement.textContent = option;
+            configSelect.appendChild(optionElement);
+        });
+    } catch (error) {
+        console.error('获取配置选项时出错:', error);
+    }
+}

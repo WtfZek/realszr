@@ -347,12 +347,12 @@ function start() {
     });
 
     document.getElementById('start').style.display = 'none';
-    negotiate();
+    
     document.getElementById('stop').style.display = 'inline-block';
 
-    // const sessionid = parseInt(document.getElementById('sessionid').value);
-    // // 随机一个sessionid
-    // connectWebSocket(sessionid);
+    negotiate();
+
+    connectToOCServer();
 
 }
 
@@ -735,8 +735,9 @@ const chatContent = document.getElementById('chat-content');
  *   - 'left' 或 false: 显示在左侧（接收者）
  *   - 'right' 或 true: 显示在右侧（发送者）
  * @param {boolean} isStreaming - 是否为流式消息，默认为false
+ * @param {boolean} isOC - 是否为远程消息，默认为false
  */
-function addChatMessage(message, position, isStreaming = false , isText = true) {
+function addChatMessage(message, position, isStreaming = false , isOC = false) {
 
     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
     // 'left' 或 false 表示左侧消息（接收者）
@@ -798,7 +799,7 @@ function addChatMessage(message, position, isStreaming = false , isText = true) 
             }
         } else {
             // 非流式消息，强制创建新的聊天项
-            createNewChatItem(chatContent, message, isSender, false, isText);
+            createNewChatItem(chatContent, message, isSender, false, isOC);
             // 非流式消息后，重置当前流ID
             window.currentStreamingId = null;
         }
@@ -917,10 +918,11 @@ function updateChatItemWithTypingEffect(chatItem, message) {
  * @param {HTMLElement} chatContent - 聊天内容容器
  * @param {string} message - 消息内容
  * @param {boolean} isSender - 是否为发送者消息
- * @param {boolean} isStreaming - 是否为流式消息
+ * @param {boolean} isStreaming - 是否为流式
+ * @param {boolean} isOC - 是否为远程消息
  * @returns {HTMLElement} - 创建的聊天项元素
  */
-function createNewChatItem(chatContent, message, isSender, isStreaming = false, isText) {
+function createNewChatItem(chatContent, message, isSender, isStreaming = false, isOC = false) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -935,10 +937,10 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    if (isSender && isText) {
-        avatar.src = './static/text.png';
-    } else if (isSender && !isText)  {
+    if (isOC) {
         avatar.src = './static/audio.png';
+    } else if (isSender) {
+        avatar.src = './static/text.png';
     } else {
         avatar.src = './static/szr.png';
     }
@@ -1203,7 +1205,7 @@ echoForm.addEventListener('submit', function(e) {
     .catch(error => {
         console.error('请求发生错误:', error);
         // 可以在聊天窗口中添加错误提示
-        addChatMessage('网络错误，请检查连接', 'left', false);
+        addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false);
     });
     
     // 清空输入框
@@ -1705,5 +1707,120 @@ async function getConfigOptions() {
         });
     } catch (error) {
         console.error('获取配置选项时出错:', error);
+    }
+}
+
+function connectToOCServer() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
+    const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
+    
+    // 关闭现有连接
+    if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
+        originControllerSocket.close();
+    }
+    
+    originControllerSocket = new WebSocket(wsUrl);
+
+    const statusElement = document.getElementById('info_div');
+    
+    originControllerSocket.onopen = () => {
+        // addMessage('系统', '正在连接到服务器...', 'system');
+        statusElement.textContent = '状态: 正在连接...';
+        // statusElement.className = 'status';
+    };
+    
+    originControllerSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'connected') {
+            clientId = data.client_id;
+            console.log('已连接到服务器，客户机ID:', clientId);
+            // clientIdElement.textContent = clientId;
+            // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
+            statusElement.textContent = `已连接到服务器，客户机ID位于中上方`+`\n`+`客户机ID: ${clientId}`;
+            // statusElement.className = 'status status-connected';
+        } else if (data.type === 'disconnecting') {
+            // addMessage('系统', '正在断开与服务器的连接...', 'system');
+            statusElement.textContent = '正在断开与服务器的连接...';
+        } else if (data.type === 'message') {
+            // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
+            statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
+
+            console.log("data.message",data.message)
+
+            addChatMessage(data.message, 'right', false, true);
+
+            // 更新最后一次用户消息的时间戳
+            window.lastUserMessageTimestamp = Date.now();
+
+            // 用户发送新消息后，强制重置当前流ID
+            window.currentStreamingId = null;
+
+            console.log('发送消息:', message);
+            console.log('sessionid:', document.getElementById('sessionid').value);
+
+            // 发送消息到服务器
+            fetch(`http://${window.host}/human`, {
+                body: JSON.stringify({
+                    text: data.message,
+                    type: 'chat',
+                    interrupt: true,
+                    sessionid: parseInt(document.getElementById('sessionid').value),
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                method: 'POST'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error('发送消息失败:', response.status);
+                        // 可以在聊天窗口中添加错误提示
+                        addChatMessage('消息发送失败，请重试', 'left', false);
+                    }
+                    return response.text().catch(() => null);
+                })
+                .catch(error => {
+                    console.error('请求发生错误:', error);
+                    // 可以在聊天窗口中添加错误提示
+                    addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false);
+                });
+        }
+    };
+    
+    originControllerSocket.onclose = () => {
+        // addMessage('系统', '与服务器的连接已关闭', 'system');
+        statusElement.textContent = '状态: 未连接';
+        // statusElement.className = 'status status-disconnected';
+        // clientIdElement.textContent = '未分配';
+        clientId = null;
+    };
+    
+    originControllerSocket.onerror = (error) => {
+        // addMessage('系统', '连接错误', 'system');
+        statusElement.textContent = '状态: 连接错误';
+        console.error('WebSocket错误:', error);
+    };
+}
+
+
+
+function disconnectFromServer() {
+    // 添加状态检查，确保连接已打开
+    if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
+        try {
+            originControllerSocket.send(JSON.stringify({
+                disconnect: true,
+                client_id: clientId  // 发送客户端ID以便服务器正确识别
+            }));
+            console.log('已发送断开连接请求');
+        } catch (e) {
+            console.error('发送断开连接请求失败:', e);
+        }
+    } else {
+        console.warn('WebSocket连接未打开，无法发送断开请求');
+        // 如果连接未打开，直接更新UI状态
+        document.getElementById('info_div').textContent = '状态: 未连接';
     }
 }

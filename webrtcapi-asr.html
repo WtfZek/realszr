@@ -1021,7 +1021,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
                         </svg>
-                        建立连接
+                        远程控制
                     </div>
                     <div id="info_div">点击按钮开始建立远控链接</div>
                     <div class="button-group">
@@ -1033,7 +1033,8 @@
                         </button>
                         <button id="disconnect-ws-btn" class="btn-warning" onclick="">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                <rect x="6" y="4" width="4" height="16"></rect>
+                                <rect x="14" y="4" width="4" height="16"></rect>
                             </svg>
                             断开连接
                         </button>
@@ -1504,7 +1505,7 @@
 </div>
     <script src="config.js"></script>
     <script src="client.js"></script>
-    <script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>
+<!--    <script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>-->
     <script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -4312,6 +4313,7 @@
         
 
         let originControllerSocket = null;
+        let clientId = null; // 用于保存客户端ID
 
         document.getElementById('connect-ws-btn').addEventListener('click', () => {
             connectToOCServer();
@@ -4327,103 +4329,92 @@
 
 
         // 连接到服务器
-        function connectToOCServer() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
-            const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
-            
-            // 关闭现有连接
-            if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
-                originControllerSocket.close();
-            }
-            
-            originControllerSocket = new WebSocket(wsUrl);
-
-            const statusElement = document.getElementById('info_div');
-            
-            originControllerSocket.onopen = () => {
-                addMessage('系统', '正在连接到服务器...', 'system');
-                statusElement.textContent = '状态: 正在连接...';
-                // statusElement.className = 'status';
-            };
-            
-            originControllerSocket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'connected') {
-                    clientId = data.client_id;
-                    console.log('已连接到服务器，客户机ID:', clientId);
-                    // clientIdElement.textContent = clientId;
-                    // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
-                    statusElement.textContent = '状态: 已连接'+`已连接到服务器，客户机ID:${clientId}`;
-                    // statusElement.className = 'status status-connected';
-                } else if (data.type === 'disconnecting') {
-                    // addMessage('系统', '正在断开与服务器的连接...', 'system');
-                    statusElement.textContent = '正在断开与服务器的连接...';
-                } else if (data.type === 'message') {
-                    // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
-                    statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
-
-                    console.log("data.message",data.message)
-
-                    addChatMessage(data.message, 'right', false, false);
-
-                    // 更新最后一次用户消息的时间戳
-                    window.lastUserMessageTimestamp = Date.now();
-
-                    // 用户发送新消息后，强制重置当前流ID
-                    window.currentStreamingId = null;
-
-                    console.log('发送消息:', message);
-                    console.log('sessionid:', document.getElementById('sessionid').value);
-
-                    // 发送消息到服务器
-                    fetch(`http://${window.host}/human`, {
-                        body: JSON.stringify({
-                            text: data.message,
-                            type: 'chat',
-                            interrupt: true,
-                            sessionid: parseInt(document.getElementById('sessionid').value),
-                        }),
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        method: 'POST'
-                    })
-                        .then(response => {
-                            if (!response.ok) {
-                                console.error('发送消息失败:', response.status);
-                                // 可以在聊天窗口中添加错误提示
-                                addChatMessage('消息发送失败，请重试', 'left', false);
-                            }
-                            return response.text().catch(() => null);
-                        })
-                        .catch(error => {
-                            console.error('请求发生错误:', error);
-                            // 可以在聊天窗口中添加错误提示
-                            addChatMessage('网络错误，请检查连接', 'left', false);
-                        });
-                }
-            };
-            
-            originControllerSocket.onclose = () => {
-                // addMessage('系统', '与服务器的连接已关闭', 'system');
-                statusElement.textContent = '状态: 未连接';
-                // statusElement.className = 'status status-disconnected';
-                // clientIdElement.textContent = '未分配';
-                clientId = null;
-            };
-            
-            originControllerSocket.onerror = (error) => {
-                // addMessage('系统', '连接错误', 'system');
-                statusElement.textContent = '状态: 连接错误';
-                console.error('WebSocket错误:', error);
-            };
-        }
+        // function connectToOCServer() {
+        //     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        //     // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
+        //     const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
+        //
+        //     // 关闭现有连接
+        //     if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
+        //         originControllerSocket.close();
+        //     }
+        //
+        //     originControllerSocket = new WebSocket(wsUrl);
+        //
+        //     const statusElement = document.getElementById('info_div');
+        //
+        //     originControllerSocket.onopen = () => {
+        //         // addMessage('系统', '正在连接到服务器...', 'system');
+        //         statusElement.textContent = '状态: 正在连接...';
+        //         // statusElement.className = 'status';
+        //
+        //         // 如果有旧的客户端ID，发送替换请求
+        //         if (clientId && originControllerSocket.readyState === WebSocket.OPEN) {
+        //             originControllerSocket.send(JSON.stringify({
+        //                 replace_client_id: clientId,
+        //                 message: "请替换旧的客户端连接"
+        //             }));
+        //             console.log('发送替换旧客户端ID请求:', clientId);
+        //         }
+        //     };
+        //
+        //     originControllerSocket.onmessage = (event) => {
+        //         const data = JSON.parse(event.data);
+        //
+        //         if (data.type === 'connected') {
+        //             clientId = data.client_id;
+        //             console.log('已连接到服务器，客户机ID:', clientId);
+        //             // clientIdElement.textContent = clientId;
+        //             // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
+        //             statusElement.textContent = '状态: 已连接'+`已连接到服务器，客户机ID:${clientId}`;
+        //             // statusElement.className = 'status status-connected';
+        //
+        //             // 将客户端ID保存到localStorage，以便重新连接时使用
+        //             try {
+        //                 localStorage.setItem('oc_client_id', clientId);
+        //                 console.log('已保存客户端ID到localStorage:', clientId);
+        //             } catch (e) {
+        //                 console.error('保存客户端ID失败:', e);
+        //             }
+        //         } else if (data.type === 'disconnecting') {
+        //             // addMessage('系统', '正在断开与服务器的连接...', 'system');
+        //             statusElement.textContent = '正在断开与服务器的连接...';
+        //         } else if (data.type === 'message') {
+        //             // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
+        //             statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
+        //         }
+        //     };
+        //
+        //     originControllerSocket.onclose = () => {
+        //         // addMessage('系统', '与服务器的连接已关闭', 'system');
+        //         statusElement.textContent = '状态: 未连接';
+        //         // statusElement.className = 'status status-disconnected';
+        //         // clientIdElement.textContent = '未分配';
+        //         // 不清除clientId，以便重新连接时可以替换旧连接
+        //         // clientId = null;
+        //     };
+        //
+        //     originControllerSocket.onerror = (error) => {
+        //         // addMessage('系统', '连接错误', 'system');
+        //         statusElement.textContent = '状态: 连接错误';
+        //         console.error('WebSocket错误:', error);
+        //     };
+        // }
         
-        function disconnectFromServer() {
-            originControllerSocket.send(JSON.stringify({ disconnect: true }));
-        }
+
+        
+        // 页面加载时尝试从localStorage恢复客户端ID
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                const savedClientId = localStorage.getItem('oc_client_id');
+                if (savedClientId) {
+                    clientId = savedClientId;
+                    console.log('从localStorage恢复客户端ID:', clientId);
+                }
+            } catch (e) {
+                console.error('读取保存的客户端ID失败:', e);
+            }
+        });
         
         // 添加消息到消息容器
         // function addMessage(sender, text, type) {

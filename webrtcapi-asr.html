@@ -6,6 +6,27 @@
     <title>数字人控制面板</title>
     <!-- 添加广播服务脚本引用 -->
     <script src="./asr/ws-bridge.js"></script>
+    <!-- 添加 Face-API.js引用 -->
+    <!-- <script defer src="https://gcore.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script> -->
+    <script src="./face/face-api.js"></script>
+    <script>
+        // 初始化Face-API模型路径
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // 设置模型加载路径，使用jsDelivr CDN加速
+                const MODEL_URL = './moduls/';
+                
+                // 加载人脸检测模型（只加载最基础的模型即可）
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                console.log('人脸检测模型加载成功');
+                
+                // 将faceapi对象绑定到window，方便全局访问
+                window.faceApiLoaded = true;
+            } catch (error) {
+                console.error('人脸检测模型加载失败:', error);
+            }
+        });
+    </script>
     <script type="module">
         // 导入加载动画组件
         import LoadingAnimation from './loading-animation-component.js';
@@ -51,6 +72,34 @@
             overflow: hidden;
             color: var(--text-primary);
         }
+
+        @font-face {
+            font-family: 'ChillLongCangKaiMedium';
+            src: url('./font-family/ChillLongCangKai_Medium.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* @font-face {
+            font-family: 'ChillLongCangKaiExtraBold';
+            src: url('./font-family/ChillLongCangKai_ExtraBold.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'ChillLongCangKaiBold';
+            src: url('./font-family/ChillLongCangKai_Bold.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'ChillLongCangKaiRegular';
+            src: url('./font-family/ChillLongCangKai_Regular.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        } */
 
         /* ASR状态指示器样式 */
         #asr-status {
@@ -1103,6 +1152,220 @@
             }
         }
     </style>
+
+    <!-- 添加人脸检测相关的JavaScript -->
+    <script>
+        // 全局变量
+        let faceDetectionActive = false;
+        let faceDetectionInterval = null;
+        let faceDetected = false;
+        let faceDetectionQueue = []; // 存储等待人脸检测的消息队列
+        let videoStream = null;
+        
+        // 初始化摄像头和人脸检测
+        async function initFaceDetection() {
+
+
+            if (!window.faceApiLoaded) {
+                console.error('人脸检测模型尚未加载完成');
+                return false;
+            }
+            
+            // 获取DOM元素
+            const video = document.getElementById('face-video');
+            const container = document.getElementById('face-detection-container');
+            const faceStatus = document.getElementById('face-status');
+            
+            try {
+                // 请求摄像头权限
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: {
+                        width: 320,
+                        height: 240,
+                        facingMode: 'user'
+                    }
+                });
+                
+                // 设置视频源
+                video.srcObject = videoStream;
+                
+                // 显示容器
+                container.style.display = 'block';
+                faceStatus.textContent = '正在检测人脸...';
+                
+                // 设置人脸检测标志
+                faceDetectionActive = true;
+                
+                // 启动人脸检测循环
+                startFaceDetection();
+                
+                return true;
+            } catch (error) {
+                console.error('获取摄像头失败:', error);
+                faceStatus.textContent = '摄像头访问失败';
+                return false;
+            }
+        }
+        
+        // 停止人脸检测
+        function stopFaceDetection() {
+            // 清除检测循环
+            if (faceDetectionInterval) {
+                clearInterval(faceDetectionInterval);
+                faceDetectionInterval = null;
+            }
+            
+            // 停止视频流
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            // 隐藏容器
+            const container = document.getElementById('face-detection-container');
+            if (container) {
+                container.style.display = 'none';
+            }
+            
+            // 重置状态
+            faceDetectionActive = false;
+            faceDetected = false;
+        }
+        
+        // 启动人脸检测循环
+        function startFaceDetection() {
+            const video = document.getElementById('face-video');
+            const canvas = document.getElementById('face-canvas');
+            const faceStatus = document.getElementById('face-status');
+            const displaySize = { width: video.width, height: video.height };
+            
+            // 设置canvas尺寸
+            faceapi.matchDimensions(canvas, displaySize);
+            
+            // 启动检测循环
+            faceDetectionInterval = setInterval(async () => {
+                if (!video || !faceDetectionActive) return;
+                
+                try {
+                    // 使用TinyFaceDetector进行人脸检测
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                    
+                    // 绘制检测结果
+                    const context = canvas.getContext('2d');
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 可视化人脸检测结果
+                    if (detections.length > 0) {
+                        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                        faceapi.draw.drawDetections(canvas, resizedDetections);
+                        
+                        // 标记人脸已检测到
+                        if (!faceDetected) {
+                            faceDetected = true;
+                            faceStatus.textContent = '人脸检测成功!';
+                            faceStatus.style.backgroundColor = 'rgba(46, 196, 182, 0.7)';
+                            
+                            // 处理队列中的消息
+                            processFaceDetectionQueue();
+                        }
+                    } else {
+                        faceDetected = false;
+                        faceStatus.textContent = '未检测到人脸';
+                        faceStatus.style.backgroundColor = 'rgba(255, 159, 28, 0.7)';
+                    }
+                } catch (error) {
+                    console.error('人脸检测错误:', error);
+                }
+            }, 75); // 每100毫秒检测一次
+            
+            // 设置自动关闭定时器，3000毫秒后停止人脸检测
+            setTimeout(() => {
+                // 如果还没检测到人脸，显示超时信息
+                if (!faceDetected) {
+                    faceStatus.textContent = '检测超时，请重试';
+                    faceStatus.style.backgroundColor = 'rgba(247, 37, 133, 0.7)';
+                }
+                
+                // 1秒后自动关闭检测
+                setTimeout(() => {
+                    console.log('人脸检测时间到，自动停止检测');
+                    stopFaceDetection();
+                }, 1000);
+            }, 2000);
+        }
+        
+        // 添加消息到人脸检测队列
+        function addToFaceDetectionQueue(message) {
+            // 将消息添加到队列
+            faceDetectionQueue.push(message);
+
+            // 获取最后一个队列消息
+            const lastMessage = faceDetectionQueue[faceDetectionQueue.length - 1];
+            // 将最后一个消息覆盖整个队列
+            faceDetectionQueue = [lastMessage];
+            // 如果人脸检测尚未初始化，则初始化它
+            if (!faceDetectionActive) {
+                initFaceDetection();
+            } 
+            // 如果已经检测到人脸，则处理队列（队列最后一个消息）
+            else if (faceDetected) {
+                processFaceDetectionQueue();
+            }
+        }
+        
+        // 处理人脸检测队列
+        async function processFaceDetectionQueue() {
+            if (faceDetectionQueue.length === 0 || !faceDetected) return;
+            
+            // 获取sessionId
+            const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
+            
+            // 处理队列中的所有消息
+            for (const message of faceDetectionQueue) {
+                try {
+                    // 发送消息到后端
+                    const response = await fetch(`http://${window.parent.host}/human`, {
+                        body: JSON.stringify({
+                            text: message,
+                            type: 'chat',
+                            interrupt: true,
+                            sessionid: sessionId,
+                        }),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        method: 'POST'
+                    });
+                    
+                    addChatMessage(message, 'right', false, 'audio');
+                    
+                    // 处理响应
+                    if (!response.ok) {
+                        console.error('后端响应错误:', response.status);
+                        const info_div = document.getElementById('info_div');
+                        if (info_div) {
+                            info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+                        }
+                    } else {
+                        console.log('识别文本发送成功:', message);
+                        // 如果是在iframe中，通知父窗口添加聊天消息
+                    }
+                } catch (error) {
+                    console.error('发送消息错误:', error);
+                }
+            }
+            
+            // 清空队列
+            faceDetectionQueue = [];
+        
+            stopFaceDetection();
+        }
+        
+        // 将函数暴露给全局作用域，以便iframe可以调用
+        window.addToFaceDetectionQueue = addToFaceDetectionQueue;
+        window.initFaceDetection = initFaceDetection;
+        window.stopFaceDetection = stopFaceDetection;
+    </script>
 </head>
 <body>
 <div class="main-container">
@@ -1111,6 +1374,13 @@
         <canvas id="canvas"></canvas>
         <canvas id="canvasOrigin"></canvas>
         <div id="canvas-status" class="canvas-status">按住「空格键」可调整数字人，按「Alt」键可调整背景</div>
+    </div>
+
+    <!-- 人脸检测摄像头（默认隐藏） -->
+    <div id="face-detection-container" style="display: none; position: fixed; top: 20px; left: 20px; z-index: 1010; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden;">
+        <video id="face-video" width="320" height="240" autoplay muted style="transform: scaleX(-1);"></video>
+        <canvas id="face-canvas" width="320" height="240" style="position: absolute; top: 0; left: 0; transform: scaleX(-1);"></canvas>
+        <div id="face-status" style="position: absolute; bottom: 10px; left: 10px; color: white; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px;">等待检测...</div>
     </div>
 
     <!-- 添加语音识别按钮 -->
@@ -1994,8 +2264,8 @@
     <script src="config.js"></script>
     <script src="client.js"></script>
 <!--    <script type="text/javascript" src="http://cdn.sockjs.org/sockjs-0.3.4.js"></script>-->
-    <script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script type="text/javascript" src="./jquery-2.1.1.min.js"></script>
+<!--    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>-->
 
     <script type="text/javascript" charset="utf-8">
         // 确保全局变量可用于宽高比逻辑

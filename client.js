@@ -87,16 +87,16 @@ function connectWebSocket(sessionid) {
                 // 如果存在特定标记，表示这不是流式消息
                 if (jsonData.type === 'system' || jsonData.complete === true) {
                     // 系统消息或完整消息，不使用流式处理
-                    addChatMessage(jsonData.text || jsonData.message || event.data, 'left', false);
+                    addChatMessage(jsonData.text || jsonData.message || event.data, 'left', false, 'szr');
                     // 非流式消息后，重置当前流ID
                     window.currentStreamingId = null;
                 } else {
                     // 其他JSON消息，作为普通文本显示，使用流式处理
-                    addChatMessage(jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true);
+                    addChatMessage(jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true, 'szr');
                 }
             } catch (e) {
                 // 不是JSON，作为普通文本用流式处理
-                addChatMessage(event.data, 'left', true);
+                addChatMessage(event.data, 'left', true, 'szr');
             }
         } else {
             console.log('接收到的消息内容为空');
@@ -734,9 +734,8 @@ const chatContent = document.getElementById('chat-content');
  *   - 'left' 或 false: 显示在左侧（接收者）
  *   - 'right' 或 true: 显示在右侧（发送者）
  * @param {boolean} isStreaming - 是否为流式消息，默认为false
- * @param {boolean} isOC - 是否为远程消息，默认为false
  */
-function addChatMessage(message, position, isStreaming = false , isOC = false) {
+function addChatMessage(message, position, isStreaming = false, type) {
 
     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
     // 'left' 或 false 表示左侧消息（接收者）
@@ -767,7 +766,7 @@ function addChatMessage(message, position, isStreaming = false , isOC = false) {
         window.currentStreamingId = null; // 用户发送消息后，重置流ID，下一个系统消息将创建新的对话框
         
         // 非流式消息，直接创建新的聊天项
-        createNewChatItem(chatContent, message, isSender, false);
+        createNewChatItem(chatContent, message, isSender, false, type);
     } else {
         // 处理系统（左侧）消息
         if (isStreaming) {
@@ -777,7 +776,7 @@ function addChatMessage(message, position, isStreaming = false , isOC = false) {
             
             if (shouldCreateNewItem) {
                 // 需要创建新对话框
-                const newItem = createNewChatItem(chatContent, message, isSender, true);
+                const newItem = createNewChatItem(chatContent, message, isSender, true, type);
                 // 为新创建的流式消息生成唯一ID
                 window.currentStreamingId = 'stream-' + Date.now();
                 newItem.setAttribute('data-stream-id', window.currentStreamingId);
@@ -790,7 +789,7 @@ function addChatMessage(message, position, isStreaming = false , isOC = false) {
                     updateChatItemWithTypingEffect(lastChatItem, message);
                 } else {
                     // 没有找到匹配的流式聊天项，创建一个新的
-                    const newItem = createNewChatItem(chatContent, message, isSender, true);
+                    const newItem = createNewChatItem(chatContent, message, isSender, true, type);
                     // 为新创建的流式消息生成唯一ID
                     window.currentStreamingId = 'stream-' + Date.now();
                     newItem.setAttribute('data-stream-id', window.currentStreamingId);
@@ -798,7 +797,7 @@ function addChatMessage(message, position, isStreaming = false , isOC = false) {
             }
         } else {
             // 非流式消息，强制创建新的聊天项
-            createNewChatItem(chatContent, message, isSender, false, isOC);
+            createNewChatItem(chatContent, message, isSender, false, type);
             // 非流式消息后，重置当前流ID
             window.currentStreamingId = null;
         }
@@ -918,10 +917,9 @@ function updateChatItemWithTypingEffect(chatItem, message) {
  * @param {string} message - 消息内容
  * @param {boolean} isSender - 是否为发送者消息
  * @param {boolean} isStreaming - 是否为流式
- * @param {boolean} isOC - 是否为远程消息
  * @returns {HTMLElement} - 创建的聊天项元素
  */
-function createNewChatItem(chatContent, message, isSender, isStreaming = false, isOC = false) {
+function createNewChatItem(chatContent, message, isSender, isStreaming = false, type) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -936,12 +934,23 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    if (isOC) {
-        avatar.src = './static/audio.png';
-    } else if (isSender) {
-        avatar.src = './static/text.png';
-    } else {
-        avatar.src = './static/szr.png';
+    // 替换为switch参数type来决定头像
+    switch (type) {
+        case 'audio':
+            avatar.src = './static/audio.png';
+            break;
+        case 'text':
+            avatar.src = './static/text.png';
+            break;
+        case 'image':
+            avatar.src = './static/image.png';
+            break;
+        case 'video':
+            avatar.src = './static/video.png';
+            break;
+        default:
+            avatar.src = './static/szr.png';
+            break;
     }
     avatar.style.width = '24px';
     avatar.style.height = '24px';
@@ -953,7 +962,7 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
     messageContainer.style.display = 'flex';
     messageContainer.style.alignItems = 'end';
     messageContainer.style.fontSize = '12px';
-    messageContainer.style.fontFamily = '宋体';
+    messageContainer.style.fontFamily = 'ChillLongCangKaiMidum'; // 应用自定义字体
     messageContainer.style.border = '1px solid #dcdcdc';
     messageContainer.style.borderRadius = '8px';
     messageContainer.style.backgroundColor = '#ffffff';
@@ -993,7 +1002,7 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
  *   - 'left' 或 false: 显示在左侧（接收者）
  *   - 'right' 或 true: 显示在右侧（发送者）
  */
-function addChatMedia(mediaSource, mediaType, position) {
+function addChatMedia(mediaSource, mediaType, position, type) {
     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
     // 'left' 或 false 表示左侧消息（接收者）
     // 'right' 或 true 表示右侧消息（发送者）
@@ -1169,7 +1178,7 @@ echoForm.addEventListener('submit', function(e) {
     
     // 将用户消息显示为右侧消息(发送者)，不使用流式处理
     // currentSystemMessageId = null;
-    addChatMessage(message, 'right', false);
+    addChatMessage(message, 'right', false, 'text');
     
     // 更新最后一次用户消息的时间戳
     window.lastUserMessageTimestamp = Date.now();
@@ -1197,14 +1206,14 @@ echoForm.addEventListener('submit', function(e) {
         if (!response.ok) {
             console.error('发送消息失败:', response.status);
             // 可以在聊天窗口中添加错误提示
-            addChatMessage('消息发送失败，请重试', 'left', false);
+            addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
         }
         return response.text().catch(() => null);
     })
     .catch(error => {
         console.error('请求发生错误:', error);
         // 可以在聊天窗口中添加错误提示
-        addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false);
+        addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
     });
     
     // 清空输入框
@@ -1748,7 +1757,7 @@ function connectToOCServer() {
 
             console.log("data.message",data.message)
 
-            addChatMessage(data.message, 'right', false, true);
+            addChatMessage(data.message, 'right', false, 'audio');
 
             // 更新最后一次用户消息的时间戳
             window.lastUserMessageTimestamp = Date.now();
@@ -1776,14 +1785,14 @@ function connectToOCServer() {
                     if (!response.ok) {
                         console.error('发送消息失败:', response.status);
                         // 可以在聊天窗口中添加错误提示
-                        addChatMessage('消息发送失败，请重试', 'left', false);
+                        addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
                     }
                     return response.text().catch(() => null);
                 })
                 .catch(error => {
                     console.error('请求发生错误:', error);
                     // 可以在聊天窗口中添加错误提示
-                    addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false);
+                    addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
                 });
         }
     };

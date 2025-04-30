@@ -39,7 +39,6 @@ var isAudioMonitoring = false;
 var micMuteDuration = 3000; // 麦克风静音持续时间(毫秒)
 var recoveryCheckInterval = 100; // 恢复检查间隔(毫秒)
 
-
 addMicMuteDurationControl();
 
 // 全局函数，允许从外部暂停ASR录音
@@ -1298,49 +1297,49 @@ console.log('chatContent', chatContent);
  *   - 'left' 或 false: 显示在左侧（接收者）
  *   - 'right' 或 true: 显示在右侧（发送者）
  */
-function addChatMessage(message, position, isStreaming = false) {
+// function addChatMessage(message, position, isStreaming = false) {
 
-    // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
-    // 'left' 或 false 表示左侧消息（接收者）
-    // 'right' 或 true 表示右侧消息（发送者）
-    const isSender = position === 'right' || position === true;
+//     // 将 position 参数转换为布尔值，可以是字符串 'left'/'right' 或布尔值 false/true
+//     // 'left' 或 false 表示左侧消息（接收者）
+//     // 'right' 或 true 表示右侧消息（发送者）
+//     const isSender = position === 'right' || position === true;
     
-    // 首先尝试在当前文档中查找chat-content元素
-    let chatContent = document.getElementById('chat-content');
-    // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
-    if (!chatContent && window.parent && window.parent !== window) {
-        try {
-            chatContent = window.parent.document.getElementById('chat-content');
-            console.log('在父窗口找到chat-content元素');
-        } catch (e) {
-            console.error('尝试访问父窗口时出错:', e);
-            return; // 如果找不到聊天内容区域，直接返回
-        }
-    }
+//     // 首先尝试在当前文档中查找chat-content元素
+//     let chatContent = document.getElementById('chat-content');
+//     // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
+//     if (!chatContent && window.parent && window.parent !== window) {
+//         try {
+//             chatContent = window.parent.document.getElementById('chat-content');
+//             console.log('在父窗口找到chat-content元素');
+//         } catch (e) {
+//             console.error('尝试访问父窗口时出错:', e);
+//             return; // 如果找不到聊天内容区域，直接返回
+//         }
+//     }
     
-    if (!chatContent) {
-        console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
-        return;
-    }
+//     if (!chatContent) {
+//         console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
+//         return;
+//     }
     
-    // 如果是用户发送的消息，记录时间戳并重置当前流ID
-    if (isSender) {
-        window.lastUserMessageTimestamp = Date.now();
-        window.currentStreamingId = null; // 用户发送消息后，重置流ID，下一个系统消息将创建新的对话框
+//     // 如果是用户发送的消息，记录时间戳并重置当前流ID
+//     if (isSender) {
+//         window.lastUserMessageTimestamp = Date.now();
+//         window.currentStreamingId = null; // 用户发送消息后，重置流ID，下一个系统消息将创建新的对话框
         
-        // 非流式消息，直接创建新的聊天项
-        createNewChatItem(chatContent, message, isSender, false);
-    } else {
-        // 非流式消息，强制创建新的聊天项
-        createNewChatItem(chatContent, message, isSender, false);
-        // 非流式消息后，重置当前流ID
-        window.currentStreamingId = null;
+//         // 非流式消息，直接创建新的聊天项
+//         createNewChatItem(chatContent, message, isSender, false);
+//     } else {
+//         // 非流式消息，强制创建新的聊天项
+//         createNewChatItem(chatContent, message, isSender, false);
+//         // 非流式消息后，重置当前流ID
+//         window.currentStreamingId = null;
 
-    }
+//     }
     
-    // 将滚动条滚动到最底部
-    chatContent.scrollTop = chatContent.scrollHeight;
-}
+//     // 将滚动条滚动到最底部
+//     chatContent.scrollTop = chatContent.scrollHeight;
+// }
 
 /**
  * 创建新的聊天项
@@ -1418,26 +1417,7 @@ function onASRResult(result) {
     }
     
     // 在处理ASR结果前暂停麦克风录音
-    if (!isRecordingPaused && rec) {
-        console.log("发送消息，麦克风临时静音");
-        isRecordingPaused = true;
-        // 暂停录音处理但不关闭连接
-        rec.pause();
-        info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 正在处理您的请求，麦克风已临时静音</span>";
-        
-        // 设置自动恢复计时器
-        if (micMuteTimeout) {
-            clearTimeout(micMuteTimeout);
-        }
-        
-        micMuteTimeout = setTimeout(function() {
-            // 时间到后自动恢复
-            if (isRecordingPaused) {
-                window.resumeASRRecording();
-                console.log("麦克风静音时间结束，自动恢复");
-            }
-        }, micMuteDuration);
-    }
+    window.pauseASRRecording();
     
     // 将识别结果作为右侧消息显示（用户说的话）
     // 注释掉聊天消息显示以减少资源消耗
@@ -1470,44 +1450,76 @@ function onASRResult(result) {
         }
     }
     
-    // 注释掉发送请求以减少资源消耗
+    // 获取sessionId
     const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
-    fetch(`http://${window.parent.host}/human`, {
-        body: JSON.stringify({
-            text: result,
-            type: 'chat',
-            interrupt: true,
-            sessionid: sessionId,
-        }),
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        method: 'POST'
-    })
-    .then(response => {
-        if (!response.ok) {
-            console.error('后端响应错误:', response.status);
-            info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+    
+    // 使用人脸检测功能来验证用户
+    try {
+        // 检查父窗口是否有人脸检测功能
+        if (window.parent.addToFaceDetectionQueue) {
+            // 将消息添加到人脸检测队列
+            console.log('将ASR识别结果添加到人脸检测队列:', result);
+            info_div.innerHTML = "<span style='color:#06b6d4'>⏱️ 正在进行人脸验证，请看向摄像头...</span>";
+            
+            // 暂停麦克风
+            window.pauseASRRecording();
+            // 添加到人脸检测队列
+            window.parent.addToFaceDetectionQueue(result);
+            
+            // 在界面显示消息
+            // addChatMessage(result, 'right', false, 'audio');
         } else {
-            console.log('识别文本发送成功');
-            addChatMessage(result, 'right', false);
-            // 保持麦克风静音状态，由计时器自动恢复
-        }
-        return response.json().catch(e => null);
-    })
-    .then(data => {
-        if (data) console.log('后端返回数据:', data);
-    })
-    .catch(error => {
-        console.error('请求失败:', error);
-        info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+            console.error('父窗口没有人脸检测功能，回退到直接发送模式');
+            info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 人脸检测功能不可用，直接发送消息</span>";
+            
+            // 回退到原来的直接发送方式
+            fetch(`http://${window.parent.host}/human`, {
+                body: JSON.stringify({
+                    text: result,
+                    type: 'chat',
+                    interrupt: true,
+                    sessionid: sessionId,
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('后端响应错误:', response.status);
+                    info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+                } else {
+                    console.log('识别文本发送成功');
+                    window.parent.addChatMessage(result, 'right', false, 'audio');
+                    // 保持麦克风静音状态，由计时器自动恢复
+                }
+                return response.json().catch(e => null);
+            })
+            .then(data => {
+                if (data) console.log('后端返回数据:', data);
+            })
+            .catch(error => {
+                console.error('请求失败:', error);
+                info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
 
-        // 如果请求失败，也考虑恢复麦克风
+                // 如果请求失败，也考虑恢复麦克风
+                if (isRecordingPaused && micMuteTimeout) {
+                    clearTimeout(micMuteTimeout);
+                    window.resumeASRRecording();
+                }
+            });
+        }
+    } catch (error) {
+        console.error('人脸检测功能调用错误:', error);
+        info_div.innerHTML = '<span style="color:#f72585">❌ 人脸检测功能错误</span>';
+        
+        // 如果人脸检测功能出错，恢复麦克风
         if (isRecordingPaused && micMuteTimeout) {
             clearTimeout(micMuteTimeout);
             window.resumeASRRecording();
         }
-    });
+    }
 }
 
 // 页面初始化

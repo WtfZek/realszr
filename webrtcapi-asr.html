@@ -6,6 +6,26 @@
     <title>数字人控制面板</title>
     <!-- 添加广播服务脚本引用 -->
     <script src="./asr/ws-bridge.js"></script>
+    <script type="module">
+        // 导入加载动画组件
+        import LoadingAnimation from './loading-animation-component.js';
+        
+        // 当页面加载完成后初始化加载动画
+        document.addEventListener('DOMContentLoaded', () => {
+            // 创建加载动画实例
+            const loadingAnimation = new LoadingAnimation({
+                loadingText: '数字人系统初始化中',
+                autoStart: true,
+                duration: 800,
+                onComplete: () => {
+                    console.log('加载动画完成，页面内容已完全显示');
+                }
+            });
+            
+            // 将加载动画实例绑定到window对象，以便其他地方可以访问
+            window.loadingAnimation = loadingAnimation;
+        });
+    </script>
     <style>
         :root {
             --primary-color: #4361ee;
@@ -652,7 +672,7 @@
             border-radius: var(--border-radius);
             z-index: 1002;
             padding: 0;
-            max-height: 100%; /* 修改为100% */
+            max-height: 90%; /* 修改为100% */
             overflow: hidden;
             /*transition: var(--transition);*/
         }
@@ -893,6 +913,195 @@
             border-radius: 8px;
             background-color: rgba(67, 97, 238, 0.1);
         }
+        
+        /* 自定义播放列表样式 */
+        .custom-playlist-wrapper {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            max-height: 200px;
+            position: relative;
+            transition: box-shadow 0.2s ease;
+        }
+        
+        .custom-playlist-wrapper:focus-within {
+            box-shadow: 0 0 0 2px rgba(58, 86, 212, 0.3);
+        }
+        
+        .custom-playlist-scroll {
+            overflow-y: auto;
+            max-height: 200px;
+            padding: 0;
+            -webkit-overflow-scrolling: touch; /* 提升iOS滚动体验 */
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-color) transparent;
+        }
+        
+        /* 自定义滚动条样式 */
+        .custom-playlist-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-playlist-scroll::-webkit-scrollbar-thumb {
+            background-color: var(--primary-color);
+            border-radius: 3px;
+        }
+        
+        .custom-playlist-scroll::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+        
+        .custom-playlist {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .playlist-item {
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            user-select: none; /* 防止文本被选中 */
+            -webkit-tap-highlight-color: transparent; /* 移除iOS点击高亮 */
+            position: relative;
+        }
+        
+        .playlist-item:last-child {
+            border-bottom: none;
+        }
+        
+        .playlist-item:active {
+            background-color: rgba(58, 86, 212, 0.3);
+        }
+        
+        .playlist-item.selected {
+            background-color: rgba(58, 86, 212, 0.2);
+        }
+        
+        .playlist-item.playing {
+            font-weight: bold;
+            color: var(--primary-color);
+            background-color: rgba(58, 86, 212, 0.1);
+        }
+        
+        .playlist-item.playing::before {
+            content: '▶';
+            margin-right: 8px;
+            font-size: 10px;
+        }
+        
+        .track-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* 触摸设备样式优化 */
+        @media (pointer: coarse) {
+            .playlist-item {
+                padding: 12px 15px; /* 更大的点击区域 */
+                min-height: 24px; /* 确保有足够的高度 */
+            }
+            
+            .playlist-controls .btn-small {
+                padding: 10px 15px; /* 更大的按钮 */
+            }
+        }
+        
+        /* 播放列表控制按钮样式 */
+        .playlist-control-btn {
+            white-space: nowrap; /* 防止文本换行 */
+            overflow: hidden; /* 隐藏溢出内容 */
+            text-overflow: ellipsis; /* 文本溢出时显示省略号 */
+            min-width: 0; /* 允许按钮缩小至比内容小 */
+            padding: 8px 10px; /* 统一内边距 */
+        }
+        
+        /* 输入框样式 */
+        .input-field {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .input-field:focus {
+            border-color: var(--primary-color);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(58, 86, 212, 0.2);
+            outline: none;
+        }
+        
+        .input-field[readonly] {
+            background-color: rgba(0, 0, 0, 0.03);
+            cursor: default;
+        }
+        
+        /* 按钮文本切换 */
+        .btn-text-short {
+            display: none; /* 默认隐藏短文本 */
+        }
+        
+        /* 窄屏幕适配 */
+        @media (max-width: 480px) {
+            .playlist-controls {
+                gap: 5px; /* 减小按钮间距 */
+            }
+            
+            .playlist-control-btn {
+                padding: 8px 5px; /* 减小内边距 */
+            }
+        }
+        
+        /* 超窄屏幕适配 */
+        @media (max-width: 360px) {
+            .btn-text-normal {
+                display: none; /* 隐藏正常文本 */
+            }
+            
+            .btn-text-short {
+                display: inline; /* 显示短文本 */
+            }
+            
+            .playlist-control-btn {
+                padding: 8px 3px; /* 进一步减小内边距 */
+            }
+        }
+        
+        /* 待恢复的播放列表项目 */
+        .playlist-item.pending-restore {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-left: 3px solid #e18709;
+            padding-left: 9px; /* 12px - 3px(边框) */
+        }
+        
+        .playlist-item.pending-restore .track-name {
+            color: var(--text-secondary);
+        }
+        
+        .pending-icon {
+            margin-left: 8px;
+            opacity: 0.7;
+            color: #e18709;
+        }
+        
+        /* 窄屏幕适配 */
+        @media (max-width: 480px) {
+            .playlist-controls {
+                gap: 5px; /* 减小按钮间距 */
+            }
+            
+            .playlist-control-btn {
+                padding: 8px 5px; /* 减小内边距 */
+            }
+        }
     </style>
 </head>
 <body>
@@ -970,10 +1179,12 @@
 
         <div class="modal-scroll-container">
             <div class="tabs">
-                <button class="tab-button active" data-tab="tab-main">基础控制</button>
-                <button class="tab-button" data-tab="tab-appearance">外观设置</button>
-                <button class="tab-button" data-tab="tab-position">位置调整</button>
+                <button class="tab-button active" data-tab="tab-main">基础设置</button>
+                <button class="tab-button" data-tab="tab-appearance">外观</button>
+                <button class="tab-button" data-tab="tab-position">位置</button>
+                <button class="tab-button" data-tab="tab-music">音乐</button>
                 <button class="tab-button" data-tab="tab-recognition">语音识别</button>
+                <button class="tab-button" data-tab="tab-digitallive">数字直播</button>
             </div>
 
             <!-- 基础控制标签页 -->
@@ -1132,6 +1343,87 @@
                         </svg>
                         背景设置
                     </div>
+                    
+                    <!-- 背景图片预设 -->
+                    <div class="form-group">
+                        <label>背景图片预设</label>
+                        <div class="bg-presets-container" style="max-height: 125px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+                            <style>
+                                .bg-presets-row {
+                                    display: flex;
+                                    margin-bottom: 10px;
+                                    gap: 10px;
+                                }
+                                .bg-preset-item {
+                                    flex: 1;
+                                    position: relative;
+                                    padding-top: 28.125%; /* 16:9比例 = 9/16 * 50% */
+                                    border-radius: 4px;
+                                    overflow: hidden;
+                                    cursor: pointer;
+                                    border: 2px solid transparent;
+                                    transition: all 0.2s;
+                                }
+                                .bg-preset-item:hover {
+                                    border-color: #4361ee;
+                                    transform: translateY(-2px);
+                                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                                }
+                                .bg-preset-item.active {
+                                    border-color: #4361ee;
+                                }
+                                .bg-preset-item img {
+                                    position: absolute;
+                                    top: 0;
+                                    left: 0;
+                                    width: 100%;
+                                    height: 100%;
+                                    object-fit: cover;
+                                }
+                            </style>
+                            
+                            <!-- 第一行图片 -->
+                            <div class="bg-presets-row">
+                                <div class="bg-preset-item" data-bg-url="static\OIP-C (1).jfif">
+                                    <img src="static\OIP-C (1).jfif" alt="自然风景">
+                                </div>
+                                <div class="bg-preset-item" data-bg-url="static\OIP-C (2).jfif">
+                                    <img src="static\OIP-C (2).jfif" alt="城市风光">
+                                </div>
+                            </div>
+                            
+                            <!-- 第二行图片 -->
+                            <div class="bg-presets-row">
+                                <div class="bg-preset-item" data-bg-url="static\OIP-C (3).jfif">
+                                    <img src="static\OIP-C (3).jfif" alt="海洋">
+                                </div>
+                                <div class="bg-preset-item" data-bg-url="static\OIP-C.jfif"">
+                                    <img src="static\OIP-C.jfif" alt="山脉">
+                                </div>
+                            </div>
+                            
+                            <!-- 第三行图片 -->
+                            <div class="bg-presets-row">
+                                <div class="bg-preset-item" data-bg-url="static\下载 (1).jfif">
+                                    <img src="static\下载 (1).jfif" alt="抽象艺术">
+                                </div>
+                                <div class="bg-preset-item" data-bg-url="static\下载 (2).jfif">
+                                    <img src="static\下载 (2).jfif" alt="科技">
+                                </div>
+                            </div>
+                            
+                            <!-- 第四行图片 -->
+                            <div class="bg-presets-row">
+                                <div class="bg-preset-item" data-bg-url="static\下载 (3).jfif">
+                                    <img src="static\下载 (3).jfif" alt="宇宙">
+                                </div>
+                                <div class="bg-preset-item" data-bg-url="static\下载.jfif">
+                                    <img src="static\下载.jfif" alt="极简">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label for="backgroundUpload">上传背景图片</label>
                         <div class="file-upload">
@@ -1482,6 +1774,148 @@
                 </div>
             </div>
 
+            <!-- 音乐播放器标签页 -->
+            <div id="tab-music" class="tab-content">
+                <div class="modal-section">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                        本地音乐播放器
+                    </div>
+
+                    <!-- 上传音乐文件和播放列表 -->
+                    <div class="music-player-container" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                        <!-- 文件选择和列表展示 -->
+                        <div class="file-input-section" style="flex: 1; min-width: 250px;">
+                            <div class="file-upload" style="margin-bottom: 10px;">
+                                <label for="music-file-input" class="file-upload-label">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    选择音乐文件 ( 可多选 )
+                                </label>
+                                <input type="file" id="music-file-input" accept="audio/*" multiple>
+                            </div>
+                            
+                            <div class="playlist-container" style="margin-bottom: 15px;">
+                                <div style="font-weight: 500; margin-bottom: 5px;">播放列表</div>
+                                <!-- 新的播放列表UI，使用div和ul/li代替select/option -->
+                                <div class="custom-playlist-wrapper" style="border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; max-height: 200px; position: relative;">
+                                    <!-- 滚动容器 -->
+                                    <div class="custom-playlist-scroll" style="overflow-y: auto; max-height: 200px; padding: 5px 0;">
+                                        <!-- 实际播放列表 -->
+                                        <ul id="music-playlist-ul" class="custom-playlist" style="list-style: none; margin: 0; padding: 0;">
+                                            <!-- 音乐项目将在这里动态生成 -->
+                                            <li class="playlist-empty-message" style="padding: 10px; text-align: center; color: var(--text-secondary);">播放列表为空</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <!-- 隐藏的原始select元素，用于兼容现有JS代码 -->
+                                <select id="music-playlist" style="display: none;" hidden>
+                                    <!-- 音乐列表会在这里动态生成 -->
+                                </select>
+                                <!-- 当前播放歌曲信息 -->
+                                <div id="now-playing-info" style="margin: 10px 0; font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    未播放任何音乐
+                                </div>
+                                <div class="playlist-controls" style="display: flex; justify-content: center; gap: 8px; margin-top: 8px;">
+                                    <button class="btn-small playlist-control-btn" id="play-selected" style="flex: 1; background-color: #3a56d4;">
+                                        <span class="btn-text-normal">播放选中</span>
+                                        <span class="btn-text-short">播放</span>
+                                    </button>
+                                    <button class="btn-small playlist-control-btn" id="remove-selected" style="flex: 1; background-color: #e18709;">
+                                        <span class="btn-text-normal">移除选中</span>
+                                        <span class="btn-text-short">移除</span>
+                                    </button>
+                                    <button class="btn-small playlist-control-btn" id="clear-playlist" style="flex: 1; background-color: #d5081c;">
+                                        <span class="btn-text-normal">清空列表</span>
+                                        <span class="btn-text-short">清空</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 播放器控制区 -->
+                        <div class="player-controls-section" style="flex: 1; min-width: 250px;">
+                            
+                            <!-- 播放进度条 -->
+                            <div class="progress-container" style="margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;">
+                                    <span id="current-time">00:00</span>
+                                    <span id="total-time">00:00</span>
+                                </div>
+                                <div class="progress-bar-container" style="position: relative; height: 6px; background: #e0e0e0; border-radius: 3px;">
+                                    <div id="music-progress-bar" style="position: absolute; height: 100%; background: var(--primary-color); width: 0; border-radius: 3px;"></div>
+                                    <input type="range" id="music-progress-slider" style="position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer;" min="0" max="100" value="0">
+                                </div>
+                            </div>
+                            
+                            <!-- 音量控制 - 移到进度条下方 -->
+                            <div class="volume-control" style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                                </svg>
+                                <input type="range" id="volume-slider" min="0" max="100" value="80" style="flex-grow: 1;">
+                                <span id="volume-value">80%</span>
+                            </div>
+                            
+                            <!-- 播放控制按钮 - 重新排列布局 -->
+                            <div class="playback-controls" style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px;">
+                                <button id="prev-track" class="circle-button" style="width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background-color: var(--primary-color); border: none; color: white; padding: 0;">
+                                    <!-- 图标将通过JS动态设置 -->
+                                </button>
+                                <button id="play-pause" class="circle-button" style="width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background-color: var(--primary-color); border: none; color: white; padding: 0;">
+                                    <!-- 图标将通过JS动态设置 -->
+                                </button>
+                                <button id="next-track" class="circle-button" style="width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background-color: var(--primary-color); border: none; color: white; padding: 0;">
+                                    <!-- 图标将通过JS动态设置 -->
+                                </button>
+                            </div>
+                            
+                            <!-- 播放模式设置 -->
+                            <div class="playback-settings">
+                                <div class="setting-item" style="margin-bottom: 10px;">
+                                    <label for="loop-mode">循环模式:</label>
+                                    <div class="custom-select-wrapper" style="position: relative; display: inline-block; width: calc(100% - 80px);">
+                                        <select id="loop-mode" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; width: 100%; border-radius: 4px; border: 1px solid var(--border-color); padding: 8px 30px 8px 10px; background-color: var(--bg-color); cursor: pointer;">
+                                            <option value="no-loop">不循环</option>
+                                            <option value="single">单曲循环</option>
+                                            <option value="list">列表循环</option>
+                                            <option value="random">随机播放</option>
+                                        </select>
+                                        <div class="select-arrow" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-item" style="margin-bottom: 10px; display: flex; align-items: center;">
+                                    <label for="loop-count" style="margin-right: 10px;">循环次数:</label>
+                                    <input type="number" id="loop-count" min="0" max="100" value="1" style="width: 60px; border-radius: 4px; border: 1px solid var(--border-color); padding: 5px;">
+                                    <span style="margin-left: 5px; color: var(--text-secondary); font-size: 12px;">(0表示无限循环)</span>
+                                </div>
+                                
+                                <div class="setting-item" style="margin-bottom: 10px; display: flex; align-items: center;">
+                                    <label for="loop-interval" style="margin-right: 10px;">循环间隔(秒):</label>
+                                    <input type="number" id="loop-interval" min="0" max="60" value="2" style="width: 60px; border-radius: 4px; border: 1px solid var(--border-color); padding: 5px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 隐藏的音频元素用于实际播放 -->
+                    <audio id="music-player" style="display:none;"></audio>
+                </div>
+            </div>
+
             <!-- 语音识别标签页 -->
             <div id="tab-recognition" class="tab-content">
                 <div class="modal-section">
@@ -1496,6 +1930,60 @@
                     </div>
                     <div class="asr-container">
                         <iframe id="asr-iframe" src="asr/index.html" style="width:100%; height:100%;"></iframe>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-digitallive" class="tab-content">
+                <div class="modal-section">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                        无人播放文件夹 
+                    </div>
+
+                    <div class="form-group">
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <input type="text" id="nb-live-path" class="input-field" style="flex: 1;" placeholder="请输入文件夹路径">
+                            <button id="browse-folder-btn" class="btn-secondary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px; vertical-align: text-bottom;">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                选择文件夹
+                            </button>
+                        </div>
+                        <div class="info-box" style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 3px solid #ff9800;">
+                            <p style="margin: 0; font-size: 13px; color: #e65100;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 5px;">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12" y2="16"></line>
+                                </svg>
+                                <strong>重要提示</strong>：由于浏览器安全限制，选择文件夹后只能获取文件夹名称而非完整路径。请在文件资源管理器中复制完整路径。
+                            </p>
+                        </div>
+                        <button id="submit-nb-path" class="btn-primary" style="width: 100%;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px; vertical-align: text-bottom;">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                            提交无人播放文件夹路径
+                        </button>
+                    </div>
+
+                    <!-- 成功提示弹窗 -->
+                    <div id="nb-success-toast" style="display: none; position: fixed; bottom: 30px; right: 30px; background-color: #4caf50; color: white; padding: 15px 20px; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 1000; opacity: 0; transition: opacity 0.3s ease-in-out;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            <span id="nb-toast-message">提交成功!</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1528,6 +2016,178 @@
             set: function(val) { 
                 window._videoRatioHeight = val;
                 console.log("设置window.videoRatioHeight:", val);
+            }
+        });
+
+        // 无人播放文件夹功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const browseBtn = document.getElementById('browse-folder-btn');
+            const pathInput = document.getElementById('nb-live-path');
+            const submitBtn = document.getElementById('submit-nb-path');
+            const successToast = document.getElementById('nb-success-toast');
+            const toastMessage = document.getElementById('nb-toast-message');
+            
+            if (browseBtn && pathInput && submitBtn) {
+                // 点击选择文件夹按钮的处理
+                browseBtn.addEventListener('click', async function() {
+                    // 检查是否支持现代文件系统访问API
+                    if ('showDirectoryPicker' in window) {
+                        try {
+                            // 警告用户关于浏览器限制
+                            showToast("由于浏览器安全限制，只能获取文件夹名称而非完整路径，请在选择后手动补全", "warning", 6000);
+                            
+                            // 使用现代API选择文件夹
+                            const dirHandle = await window.showDirectoryPicker();
+                            
+                            // 获取文件夹名称
+                            const folderName = dirHandle.name;
+                            
+                            // 判断操作系统类型，提供默认路径格式
+                            const isWindows = navigator.platform.indexOf('Win') > -1;
+                            
+                            if (isWindows) {
+                                // Windows路径格式，需要用户补全驱动器和前面的路径
+                                const currentPath = pathInput.value.trim();
+                                
+                                // 如果用户已有输入，尝试保留前面部分
+                                if (currentPath) {
+                                    // 检查是否是有效的Windows路径格式
+                                    if (/^[A-Z]:\\/.test(currentPath)) {
+                                        // 如果是完整路径，替换最后一级文件夹
+                                        pathInput.value = currentPath.replace(/[^\\]*$/, folderName);
+                                    } else {
+                                        // 不是完整路径，提示用户
+                                        pathInput.value = `C:\\路径\\到\\${folderName}`;
+                                        showToast("请替换为实际完整路径", "warning");
+                                    }
+                                } else {
+                                    // 用户没有输入，提供示例
+                                    pathInput.value = `C:\\路径\\到\\${folderName}`;
+                                    showToast("请替换为实际完整路径", "warning");
+                                }
+                            } else {
+                                // Unix/Linux/Mac路径格式
+                                const currentPath = pathInput.value.trim();
+                                
+                                if (currentPath) {
+                                    // 如果用户已有输入，尝试保留前面部分
+                                    if (currentPath.startsWith('/')) {
+                                        // 如果是完整路径，替换最后一级文件夹
+                                        pathInput.value = currentPath.replace(/[^\/]*$/, folderName);
+                                    } else {
+                                        // 不是完整路径，提示用户
+                                        pathInput.value = `/路径/到/${folderName}`;
+                                        showToast("请替换为实际完整路径", "warning");
+                                    }
+                                } else {
+                                    // 用户没有输入，提供示例
+                                    pathInput.value = `/路径/到/${folderName}`;
+                                    showToast("请替换为实际完整路径", "warning");
+                                }
+                            }
+                            
+                            // 将光标放在输入框内
+                            pathInput.focus();
+                            // 选中路径部分以便用户修改
+                            if (isWindows) {
+                                const pathParts = pathInput.value.split('\\');
+                                if (pathParts.length > 2) {
+                                    const selStart = pathInput.value.indexOf('\\') + 1;
+                                    const selEnd = pathInput.value.lastIndexOf('\\');
+                                    pathInput.setSelectionRange(selStart, selEnd);
+                                }
+                            } else {
+                                const pathParts = pathInput.value.split('/');
+                                if (pathParts.length > 2) {
+                                    const selStart = 1;
+                                    const selEnd = pathInput.value.lastIndexOf('/');
+                                    pathInput.setSelectionRange(selStart, selEnd);
+                                }
+                            }
+                        } catch (e) {
+                            // 用户取消选择或发生错误
+                            if (e.name !== 'AbortError') {
+                                console.error('选择文件夹时出错:', e);
+                                showToast('选择文件夹失败: ' + e.message, 'error');
+                            }
+                        }
+                    } else {
+                        // 不支持现代API，提示用户手动输入
+                        showToast('您的浏览器不支持文件夹选择，请手动输入完整路径', 'warning');
+                        
+                        // 根据操作系统类型选择合适的示例路径
+                        const isWindows = navigator.platform.indexOf('Win') > -1;
+                        if (isWindows) {
+                            pathInput.value = 'C:\\Users\\Public\\Videos\\无人播放';
+                        } else {
+                            pathInput.value = '/home/user/videos/无人播放';
+                        }
+                    }
+                });
+                
+                // 提交按钮点击事件
+                submitBtn.addEventListener('click', function() {
+                    const folderPath = pathInput.value.trim();
+                    
+                    if (!folderPath) {
+                        showToast('请输入文件夹路径!', 'error');
+                        return;
+                    }
+                    
+                    // 发送POST请求
+                    fetch(`${window.protocol}://${window.host}/nblivepath`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ path: folderPath, sessionid: parseInt(document.getElementById('sessionid').value) })
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            showToast('提交成功!');
+                        } else {
+                            showToast('提交失败: ' + response.statusText, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showToast('提交出错: ' + error.message, 'error');
+                        console.error('提交错误:', error);
+                    });
+                });
+                
+                // 显示提示弹窗
+                function showToast(message, type = 'success', duration = 3000) {
+                    toastMessage.textContent = message;
+                    
+                    // 根据类型设置不同的背景色
+                    if (type === 'error') {
+                        successToast.style.backgroundColor = '#f44336';
+                    } else if (type === 'info') {
+                        successToast.style.backgroundColor = '#2196F3';
+                    } else if (type === 'warning') {
+                        successToast.style.backgroundColor = '#ff9800';
+                    } else {
+                        successToast.style.backgroundColor = '#4caf50';
+                    }
+                    
+                    // 显示弹窗
+                    successToast.style.display = 'block';
+                    
+                    // 动画显示
+                    setTimeout(() => {
+                        successToast.style.opacity = 1;
+                    }, 10);
+                    
+                    // 指定时间后消失
+                    setTimeout(() => {
+                        successToast.style.opacity = 0;
+                        
+                        // 等待淡出动画完成后隐藏
+                        setTimeout(() => {
+                            successToast.style.display = 'none';
+                        }, 300);
+                    }, duration);
+                }
             }
         });
 
@@ -1852,7 +2512,7 @@
             // 录制控制逻辑
             $('#btn_start_record').click(function() {
                 console.log('Starting recording...');
-                fetch(`http://${window.host}/record`, {
+                fetch(`${window.protocol}://${window.host}/record`, {
                     body: JSON.stringify({
                         type: 'start_record',
                     }),
@@ -1875,7 +2535,7 @@
 
             $('#btn_stop_record').click(function() {
                 console.log('Stopping recording...');
-                fetch(`http://${window.host}/record`, {
+                fetch(`${window.protocol}://${window.host}/record`, {
                     body: JSON.stringify({
                         type: 'end_record',
                     }),
@@ -4093,6 +4753,166 @@
             document.querySelectorAll('.tab-button').forEach(btn=>{
                 btn.addEventListener('click', resetAllAutoHideTimers);
             });
+
+            
+                // 应用背景图片函数
+                function applyBackgroundImage(imageUrl) {
+                    // 获取main-container元素
+                    const mainContainer = document.querySelector('.main-container');
+                    
+                    if (!mainContainer) {
+                        console.log('mainContainer', mainContainer);
+                        console.error('找不到main-container元素');
+                        return;
+                    }
+                    
+                    // 输出调试信息
+                    console.log(`应用背景图片: ${imageUrl}`);
+                    
+                    // 设置背景图
+                    
+                    mainContainer.style.backgroundImage = `url('${imageUrl}')`;
+                    
+                    // 使用现有的背景位置和缩放设置
+                    updateBackgroundStyle();
+                    
+                    // 保存到localStorage，以便刷新页面后保持
+                    localStorage.setItem('backgroundImage', imageUrl);
+                }
+
+            // ========== 背景图片预设相关 ========== //
+            // 初始化背景图片预设点击事件
+            document.addEventListener('DOMContentLoaded', function() {
+                // 获取所有背景图片预设元素
+                const bgPresetItems = document.querySelectorAll('.bg-preset-item');
+                
+                // 为每个预设添加点击事件
+                bgPresetItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        // 获取背景图片URL
+                        const bgUrl = this.getAttribute('data-bg-url');
+                        
+                        // 应用背景图片
+                        applyBackgroundImage(bgUrl);
+                        
+                        // 更新选中状态
+                        bgPresetItems.forEach(el => el.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // 显示成功提示
+                        showToast('背景图片已应用', 'success');
+                    });
+                });
+                
+                
+                // 检查localStorage是否有保存的背景图片
+                const savedBgImage = localStorage.getItem('backgroundImage');
+                if (savedBgImage) {
+                    applyBackgroundImage(savedBgImage);
+                    
+                    // 设置对应预设为选中状态
+                    bgPresetItems.forEach(item => {
+                        if (item.getAttribute('data-bg-url') === savedBgImage) {
+                            item.classList.add('active');
+                        }
+                    });
+                }
+                
+                // 为文件上传控件添加事件，使其与预设系统协同工作
+                const backgroundUpload = document.getElementById('backgroundUpload');
+                if (backgroundUpload) {
+                    backgroundUpload.addEventListener('change', function() {
+                        if (this.files && this.files[0]) {
+                            const reader = new FileReader();
+                            
+                            reader.onload = function(e) {
+                                // 应用上传的背景图片
+                                applyBackgroundImage(e.target.result);
+                                
+                                // 清除所有预设的选中状态
+                                bgPresetItems.forEach(item => item.classList.remove('active'));
+                                
+                                // 显示成功提示
+                                showToast('自定义背景图片已应用', 'success');
+                            };
+                            
+                            reader.readAsDataURL(this.files[0]);
+                        }
+                    });
+                }
+            });
+            
+            // 立即执行背景图片预设初始化（解决DOMContentLoaded可能已经发生的问题）
+            (function initBackgroundPresets() {
+                // 获取所有背景图片预设元素
+                const bgPresetItems = document.querySelectorAll('.bg-preset-item');
+                
+                // 确保找到了预设元素
+                if (bgPresetItems.length === 0) {
+                    console.log('没有找到背景图片预设元素，可能是DOM尚未完全加载');
+                    // 如果找不到元素，尝试延迟执行
+                    setTimeout(initBackgroundPresets, 500);
+                    return;
+                }
+                
+                console.log(`找到了${bgPresetItems.length}个背景图片预设元素`);
+                
+                
+                // 为每个预设添加点击事件
+                bgPresetItems.forEach(item => {
+                    // 移除之前可能的事件监听器，避免重复
+                    const clonedItem = item.cloneNode(true);
+                    item.parentNode.replaceChild(clonedItem, item);
+                    
+                    // 为新元素添加事件监听器
+                    clonedItem.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // 获取背景图片URL
+                        const bgUrl = this.getAttribute('data-bg-url');
+                        
+                        // 输出调试信息
+                        console.log(`点击了背景图片预设: ${bgUrl}`);
+                        
+                        // 修正背景图片路径（如果需要）
+                        let finalBgUrl = bgUrl;
+                        if (!bgUrl.startsWith('http') && !bgUrl.startsWith('data:')) {
+                            // 确保路径正确，使用正斜杠
+                            finalBgUrl = bgUrl.replace(/\\/g, '/');
+                        }
+                        
+                        // 应用背景图片
+                        applyBackgroundImage(finalBgUrl);
+                        
+                        // 更新选中状态
+                        bgPresetItems.forEach(el => el.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // 显示成功提示
+                        if (typeof showToast === 'function') {
+                            showToast('背景图片已应用', 'success');
+                        } else {
+                            console.log('背景图片已应用');
+                        }
+                        
+                        return false;
+                    });
+                });
+                
+                // 检查localStorage是否有保存的背景图片
+                const savedBgImage = localStorage.getItem('backgroundImage');
+                if (savedBgImage) {
+                    applyBackgroundImage(savedBgImage);
+                    
+                    // 设置对应预设为选中状态
+                    bgPresetItems.forEach(item => {
+                        if (item.getAttribute('data-bg-url') === savedBgImage) {
+                            item.classList.add('active');
+                        }
+                    });
+                }
+            })();
         });
     </script>
     
@@ -4245,7 +5065,7 @@
         // 获取下拉框选项
         async function getConfigOptions() {
             try {
-                const response = await fetch(`http://${window.host}/get_config`, {
+                const response = await fetch(`${window.protocol}://${window.host}/get_config`, {
                     method: 'POST',
                     body: JSON.stringify({
                         sessionid: parseInt(document.getElementById('sessionid').value),
@@ -4273,7 +5093,7 @@
         async function submitConfig() {
             const text = document.getElementById('config-select').value;
             try {
-                const response = await fetch(`http://${window.host}/set_config`, {
+                const response = await fetch(`${window.protocol}://${window.host}/set_config`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -4326,82 +5146,6 @@
                 disconnectFromServer();
             }
         });
-
-
-        // 连接到服务器
-        // function connectToOCServer() {
-        //     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        //     // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
-        //     const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
-        //
-        //     // 关闭现有连接
-        //     if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
-        //         originControllerSocket.close();
-        //     }
-        //
-        //     originControllerSocket = new WebSocket(wsUrl);
-        //
-        //     const statusElement = document.getElementById('info_div');
-        //
-        //     originControllerSocket.onopen = () => {
-        //         // addMessage('系统', '正在连接到服务器...', 'system');
-        //         statusElement.textContent = '状态: 正在连接...';
-        //         // statusElement.className = 'status';
-        //
-        //         // 如果有旧的客户端ID，发送替换请求
-        //         if (clientId && originControllerSocket.readyState === WebSocket.OPEN) {
-        //             originControllerSocket.send(JSON.stringify({
-        //                 replace_client_id: clientId,
-        //                 message: "请替换旧的客户端连接"
-        //             }));
-        //             console.log('发送替换旧客户端ID请求:', clientId);
-        //         }
-        //     };
-        //
-        //     originControllerSocket.onmessage = (event) => {
-        //         const data = JSON.parse(event.data);
-        //
-        //         if (data.type === 'connected') {
-        //             clientId = data.client_id;
-        //             console.log('已连接到服务器，客户机ID:', clientId);
-        //             // clientIdElement.textContent = clientId;
-        //             // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
-        //             statusElement.textContent = '状态: 已连接'+`已连接到服务器，客户机ID:${clientId}`;
-        //             // statusElement.className = 'status status-connected';
-        //
-        //             // 将客户端ID保存到localStorage，以便重新连接时使用
-        //             try {
-        //                 localStorage.setItem('oc_client_id', clientId);
-        //                 console.log('已保存客户端ID到localStorage:', clientId);
-        //             } catch (e) {
-        //                 console.error('保存客户端ID失败:', e);
-        //             }
-        //         } else if (data.type === 'disconnecting') {
-        //             // addMessage('系统', '正在断开与服务器的连接...', 'system');
-        //             statusElement.textContent = '正在断开与服务器的连接...';
-        //         } else if (data.type === 'message') {
-        //             // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
-        //             statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
-        //         }
-        //     };
-        //
-        //     originControllerSocket.onclose = () => {
-        //         // addMessage('系统', '与服务器的连接已关闭', 'system');
-        //         statusElement.textContent = '状态: 未连接';
-        //         // statusElement.className = 'status status-disconnected';
-        //         // clientIdElement.textContent = '未分配';
-        //         // 不清除clientId，以便重新连接时可以替换旧连接
-        //         // clientId = null;
-        //     };
-        //
-        //     originControllerSocket.onerror = (error) => {
-        //         // addMessage('系统', '连接错误', 'system');
-        //         statusElement.textContent = '状态: 连接错误';
-        //         console.error('WebSocket错误:', error);
-        //     };
-        // }
-        
-
         
         // 页面加载时尝试从localStorage恢复客户端ID
         document.addEventListener('DOMContentLoaded', function() {
@@ -4425,5 +5169,7 @@
         //     messageContainer.scrollTop = messageContainer.scrollHeight;
         // }
     </script>
+    <!-- 引入音乐播放器脚本 -->
+    <script src="music-player.js"></script>
 </body>
 </html>

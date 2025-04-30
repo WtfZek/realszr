@@ -1145,6 +1145,7 @@ window.stop = function() {
 
     // 停止音频监测
     stopAudioMonitoring();
+    
 
     if(isfilemode == false) {
         btnStop.disabled = true;
@@ -1470,42 +1471,43 @@ function onASRResult(result) {
     }
     
     // 注释掉发送请求以减少资源消耗
-    // const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
-    // fetch(`http://${window.parent.host}/human`, {
-    //     body: JSON.stringify({
-    //         text: result,
-    //         type: 'chat',
-    //         interrupt: true,
-    //         sessionid: sessionId,
-    //     }),
-    //     headers: {
-    //         'Content-Type': 'application/json'
-    //     },
-    //     method: 'POST'
-    // })
-    // .then(response => {
-    //     if (!response.ok) {
-    //         console.error('后端响应错误:', response.status);
-    //         info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
-    //     } else {
-    //         console.log('识别文本发送成功');
-    //         // 保持麦克风静音状态，由计时器自动恢复
-    //     }
-    //     return response.json().catch(e => null);
-    // })
-    // .then(data => {
-    //     if (data) console.log('后端返回数据:', data);
-    // })
-    // .catch(error => {
-    //     console.error('请求失败:', error);
-    //     info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
-    //     
-    //     // 如果请求失败，也考虑恢复麦克风
-    //     if (isRecordingPaused && micMuteTimeout) {
-    //         clearTimeout(micMuteTimeout);
-    //         window.resumeASRRecording();
-    //     }
-    // });
+    const sessionId = parseInt(window.parent.document.getElementById('sessionid').value);
+    fetch(`http://${window.parent.host}/human`, {
+        body: JSON.stringify({
+            text: result,
+            type: 'chat',
+            interrupt: true,
+            sessionid: sessionId,
+        }),
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            console.error('后端响应错误:', response.status);
+            info_div.innerHTML = '<span style="color:#f72585">❌ 发送到后端失败，状态码: ' + response.status + '</span>';
+        } else {
+            console.log('识别文本发送成功');
+            addChatMessage(result, 'right', false);
+            // 保持麦克风静音状态，由计时器自动恢复
+        }
+        return response.json().catch(e => null);
+    })
+    .then(data => {
+        if (data) console.log('后端返回数据:', data);
+    })
+    .catch(error => {
+        console.error('请求失败:', error);
+        info_div.innerHTML = '<span style="color:#f72585">❌ 后端连接失败，请检查网络</span>';
+
+        // 如果请求失败，也考虑恢复麦克风
+        if (isRecordingPaused && micMuteTimeout) {
+            clearTimeout(micMuteTimeout);
+            window.resumeASRRecording();
+        }
+    });
 }
 
 // 页面初始化

@@ -61,8 +61,7 @@ function connectWebSocket(sessionid) {
     }
 
     // Create a new WebSocket connection
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.host}/ws?sessionid=${sessionid}`;
+    const wsUrl = `${window.wsProtocol}://${window.host}/ws?sessionid=${sessionid}`;
     console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
     ws = new WebSocket(wsUrl);
 
@@ -150,7 +149,7 @@ function negotiate() {
         });
     }).then(() => {
         var offer = pc.localDescription;
-        return fetch(`http://${window.host}/offer`, {
+        return fetch(`${window.protocol}://${window.host}/offer`, {
             body: JSON.stringify({
                 sdp: offer.sdp,
                 type: offer.type,
@@ -1182,7 +1181,7 @@ echoForm.addEventListener('submit', function(e) {
     console.log('sessionid:', document.getElementById('sessionid').value);
     
     // 发送消息到服务器
-    fetch(`http://${window.host}/human`, {
+    fetch(`${window.protocol}://${window.host}/human`, {
         body: JSON.stringify({
             text: message,
             type: 'chat',
@@ -1682,8 +1681,8 @@ window.saveAndCleanup = function() {
 // 获取下拉框选项
 async function getConfigOptions() {
     try {
-        console.log(`http://${window.host}/get_config`+`已发送`);
-        const response = await fetch(`http://${window.host}/get_config`, {
+        console.log(`${window.protocol}://${window.host}/get_config`+`已发送`);
+        const response = await fetch(`${window.protocol}://${window.host}/get_config`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1711,9 +1710,9 @@ async function getConfigOptions() {
 }
 
 function connectToOCServer() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // const host = window.location.hostname === '' ? 'localhost:8000' : window.location.host;
-    const wsUrl = `${protocol}//192.168.3.188:8000/ws/client`;
+    const wsUrl = `${window.wsProtocol}://localhost:8000/ws/client`;
+
+    console.log('有问题的ws链接:', wsUrl);
     
     // 关闭现有连接
     if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
@@ -1761,7 +1760,7 @@ function connectToOCServer() {
             console.log('sessionid:', document.getElementById('sessionid').value);
 
             // 发送消息到服务器
-            fetch(`http://${window.host}/human`, {
+            fetch(`${window.protocol}://${window.host}/human`, {
                 body: JSON.stringify({
                     text: data.message,
                     type: 'chat',

@@ -1456,7 +1456,7 @@ function onASRResult(result) {
     // 使用人脸检测功能来验证用户
     try {
         // 检查父窗口是否有人脸检测功能
-        if (window.parent.addToFaceDetectionQueue) {
+        if (window.parent.addToFaceDetectionQueue && window.parent.useFaceDetection) {
             // 将消息添加到人脸检测队列
             console.log('将ASR识别结果添加到人脸检测队列:', result);
             info_div.innerHTML = "<span style='color:#06b6d4'>⏱️ 正在进行人脸验证，请看向摄像头...</span>";
@@ -1469,9 +1469,7 @@ function onASRResult(result) {
             // 在界面显示消息
             // addChatMessage(result, 'right', false, 'audio');
         } else {
-            console.error('父窗口没有人脸检测功能，回退到直接发送模式');
-            info_div.innerHTML = "<span style='color:#ff9f1c'>⚠️ 人脸检测功能不可用，直接发送消息</span>";
-            
+            info_div.innerHTML = "<span style='color:#ff9f1c'>人脸检测功能已停用，直接发送消息</span>";
             // 回退到原来的直接发送方式
             fetch(`http://${window.parent.host}/human`, {
                 body: JSON.stringify({

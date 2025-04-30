@@ -1189,8 +1189,8 @@
                 // 设置视频源
                 video.srcObject = videoStream;
                 
-                // 显示容器
-                container.style.display = 'block';
+                // 显示容器，永久不显示人脸检测框
+                // container.style.display = 'block';
                 faceStatus.textContent = '正在检测人脸...';
                 
                 // 设置人脸检测标志
@@ -1374,13 +1374,6 @@
         <canvas id="canvas"></canvas>
         <canvas id="canvasOrigin"></canvas>
         <div id="canvas-status" class="canvas-status">按住「空格键」可调整数字人，按「Alt」键可调整背景</div>
-    </div>
-
-    <!-- 人脸检测摄像头（默认隐藏） -->
-    <div id="face-detection-container" style="display: none; position: fixed; top: 20px; left: 20px; z-index: 1010; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden;">
-        <video id="face-video" width="320" height="240" autoplay muted style="transform: scaleX(-1);"></video>
-        <canvas id="face-canvas" width="320" height="240" style="position: absolute; top: 0; left: 0; transform: scaleX(-1);"></canvas>
-        <div id="face-status" style="position: absolute; bottom: 10px; left: 10px; color: white; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px;">等待检测...</div>
     </div>
 
     <!-- 添加语音识别按钮 -->
@@ -2202,6 +2195,38 @@
                         <iframe id="asr-iframe" src="asr/index.html" style="width:100%; height:100%;"></iframe>
                     </div>
                 </div>
+                
+                <div class="modal-section">
+                    <div class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        人脸检测
+                    </div>
+                    <!-- 人脸检测摄像头（移动到主体中，初始隐藏但不会自动隐藏） -->
+                    <div id="face-detection-container" style="display: none!important; position: fixed; top: 20px; right: 20px; z-index: 1010; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <video id="face-video" width="320" height="240" autoplay muted style="transform: scaleX(-1);"></video>
+                        <canvas id="face-canvas" width="320" height="240" style="position: absolute; top: 0; left: 0; transform: scaleX(-1);"></canvas>
+                        <div id="face-status" style="position: absolute; bottom: 10px; left: 10px; color: white; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px;">等待检测...</div>
+                    </div>
+                    <div class="switch-container" style="justify-content: space-between; margin-bottom: 20px;">
+                        <label for="face-detection-toggle" style="margin: 0; font-size: 14px; color: var(--text-secondary);">启用人脸检测（发送语音前需验证人脸）</label>
+                        <label class="switch">
+                            <input type="checkbox" id="face-detection-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="info-box" style="background-color: #e3f2fd; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 3px solid #2196f3;">
+                        <p style="margin: 0; font-size: 13px; color: #0d47a1;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 5px;">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="16"></line>
+                                <line x1="12" y1="16" x2="12" y2="16"></line>
+                            </svg>
+                            开启此功能后，发送语音识别结果前系统会自动打开摄像头进行人脸验证，只有检测到人脸后才会发送结果
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <div id="tab-digitallive" class="tab-content">
@@ -2272,6 +2297,9 @@
         window.videoRatioWidth = null;
         window.videoRatioHeight = null;
         
+        // 人脸检测控制变量
+        window.useFaceDetection = true;
+        
         // 扩展window对象上的getter，在client.js中设置的值会更新到window对象
         Object.defineProperty(window, 'videoRatioWidth', {
             get: function() { return window._videoRatioWidth; },
@@ -2296,6 +2324,34 @@
             const submitBtn = document.getElementById('submit-nb-path');
             const successToast = document.getElementById('nb-success-toast');
             const toastMessage = document.getElementById('nb-toast-message');
+            const faceDetectionToggle = document.getElementById('face-detection-toggle');
+            
+            // 从localStorage加载人脸检测设置
+            try {
+                const savedFaceDetection = localStorage.getItem('useFaceDetection');
+                if (savedFaceDetection !== null) {
+                    window.useFaceDetection = savedFaceDetection === 'true';
+                    if (faceDetectionToggle) {
+                        faceDetectionToggle.checked = window.useFaceDetection;
+                    }
+                }
+            } catch (e) {
+                console.error('加载人脸检测设置失败:', e);
+            }
+            
+            // 监听人脸检测开关状态变化
+            if (faceDetectionToggle) {
+                faceDetectionToggle.addEventListener('change', function() {
+                    window.useFaceDetection = this.checked;
+                    try {
+                        localStorage.setItem('useFaceDetection', window.useFaceDetection);
+                        showToast(`人脸检测已${window.useFaceDetection ? '开启' : '关闭'}`, window.useFaceDetection ? 'success' : 'info');
+                        console.log(`人脸检测已${window.useFaceDetection ? '开启' : '关闭'}`);
+                    } catch (e) {
+                        console.error('保存人脸检测设置失败:', e);
+                    }
+                });
+            }
             
             if (browseBtn && pathInput && submitBtn) {
                 // 点击选择文件夹按钮的处理

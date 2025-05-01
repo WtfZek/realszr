@@ -1474,8 +1474,8 @@ function onASRResult(result) {
             fetch(`http://${window.parent.host}/human`, {
                 body: JSON.stringify({
                     text: result,
-                    type: 'chat',
-                    interrupt: true,
+                    type: window.parent.messageType,
+                    interrupt: window.parent.messageInterrupt,
                     sessionid: sessionId,
                 }),
                 headers: {

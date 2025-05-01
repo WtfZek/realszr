@@ -1189,12 +1189,18 @@ echoForm.addEventListener('submit', function(e) {
     console.log('发送消息:', message);
     console.log('sessionid:', document.getElementById('sessionid').value);
     
+    // 使用全局变量控制请求参数
+    const messageType = window.messageType || 'chat';
+    const interrupt = window.messageInterrupt !== undefined ? window.messageInterrupt : true;
+    
+    console.log(`消息类型: ${messageType}, 打断: ${interrupt}`);
+    
     // 发送消息到服务器
     fetch(`${window.protocol}://${window.host}/human`, {
         body: JSON.stringify({
             text: message,
-            type: 'chat',
-            interrupt: true,
+            type: messageType,
+            interrupt: interrupt,
             sessionid: parseInt(document.getElementById('sessionid').value),
         }),
         headers: {
@@ -1720,6 +1726,7 @@ async function getConfigOptions() {
 
 function connectToOCServer() {
     const wsUrl = `${window.wsProtocol}://localhost:8000/ws/client`;
+    // const wsUrl = `${window.wsProtocol}://${window.host}/ws/client`;
 
     console.log('有问题的ws链接:', wsUrl);
     
@@ -1740,6 +1747,8 @@ function connectToOCServer() {
     
     originControllerSocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+
+        console.log("收到的远控ws消息：", data);
         
         if (data.type === 'connected') {
             clientId = data.client_id;
@@ -1772,8 +1781,8 @@ function connectToOCServer() {
             fetch(`${window.protocol}://${window.host}/human`, {
                 body: JSON.stringify({
                     text: data.message,
-                    type: 'chat',
-                    interrupt: true,
+                    type: window.messageType,
+                    interrupt: window.messageInterrupt,
                     sessionid: parseInt(document.getElementById('sessionid').value),
                 }),
                 headers: {
@@ -1781,19 +1790,26 @@ function connectToOCServer() {
                 },
                 method: 'POST'
             })
-                .then(response => {
-                    if (!response.ok) {
-                        console.error('发送消息失败:', response.status);
-                        // 可以在聊天窗口中添加错误提示
-                        addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
-                    }
-                    return response.text().catch(() => null);
-                })
-                .catch(error => {
-                    console.error('请求发生错误:', error);
+            .then(response => {
+                if (!response.ok) {
+                    console.error('发送消息失败:', response.status);
                     // 可以在聊天窗口中添加错误提示
-                    addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
-                });
+                    addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
+                }
+                return response.text().catch(() => null);
+            })
+            .catch(error => {
+                console.error('请求发生错误:', error);
+                // 可以在聊天窗口中添加错误提示
+                addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
+            });
+        } else if (data.type === 'type_change') {
+            console.log('收到echo消息:', data.message);
+            window.messageType = data.message;
+            const messageTypeSelect = document.getElementById('message-type-select');
+            if (messageTypeSelect) {
+                messageTypeSelect.value = data.message;
+            }
         }
     };
     

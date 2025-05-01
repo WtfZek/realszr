@@ -1327,8 +1327,8 @@
                     const response = await fetch(`http://${window.parent.host}/human`, {
                         body: JSON.stringify({
                             text: message,
-                            type: 'chat',
-                            interrupt: true,
+                            type: window.messageType,
+                            interrupt: window.messageInterrupt,
                             sessionid: sessionId,
                         }),
                         headers: {
@@ -1562,13 +1562,34 @@
                             <label for="message">输入您想与数字人交流的内容</label>
                             <textarea class="form-control" id="message" rows="3" placeholder="请输入问题或指令...">你好呀</textarea>
                         </div>
-                        <button type="submit" class="btn-primary">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
-                                <line x1="22" y1="2" x2="11" y2="13"/>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                            </svg>
-                            发送
-                        </button>
+                        <div style="display: flex; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+                            <button type="submit" class="btn-primary" style="margin-right: 15px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
+                                    <line x1="22" y1="2" x2="11" y2="13"/>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                </svg>
+                                发送
+                            </button>
+                            
+                            <!-- 控制选项，现在与按钮位于同一行 -->
+                            <div style="display: flex; align-items: center; flex-wrap: wrap; height: 36px;">
+                                <div class="switch-container" style="margin-right: 15px; display: flex; align-items: center; height: 100%;">
+                                    <label for="interrupt-toggle" style="margin-right: 5px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center;">打断</label>
+                                    <label class="switch" style="margin: 0; display: flex; align-items: center;">
+                                        <input type="checkbox" id="interrupt-toggle" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div class="switch-container" style="display: flex; align-items: center; height: 100%;">
+                                    <label for="message-type-select" style="margin-right: 5px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center;">类型</label>
+                                    <select id="message-type-select" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--bg-secondary); height: 28px;">
+                                        <option value="chat">对话</option>
+                                        <option value="echo">朗读</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </form>
                 </div>
 
@@ -1647,41 +1668,41 @@
                             
                             <!-- 第一行图片 -->
                             <div class="bg-presets-row">
-                                <div class="bg-preset-item" data-bg-url="static\OIP-C (1).jfif">
-                                    <img src="static\OIP-C (1).jfif" alt="自然风景">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg1.png">
+                                    <img src="static\sz-bg1.png" alt="未来科技横屏1">
                                 </div>
-                                <div class="bg-preset-item" data-bg-url="static\OIP-C (2).jfif">
-                                    <img src="static\OIP-C (2).jfif" alt="城市风光">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg2.png">
+                                    <img src="static\sz-bg2.png" alt="未来科技横屏2">
                                 </div>
                             </div>
                             
                             <!-- 第二行图片 -->
                             <div class="bg-presets-row">
-                                <div class="bg-preset-item" data-bg-url="static\OIP-C (3).jfif">
-                                    <img src="static\OIP-C (3).jfif" alt="海洋">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg3.png">
+                                    <img src="static\sz-bg3.png" alt="未来科技横屏3">
                                 </div>
-                                <div class="bg-preset-item" data-bg-url="static\OIP-C.jfif"">
-                                    <img src="static\OIP-C.jfif" alt="山脉">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg4.png">
+                                    <img src="static\sz-bg4.png" alt="未来科技横屏4">
                                 </div>
                             </div>
                             
                             <!-- 第三行图片 -->
                             <div class="bg-presets-row">
-                                <div class="bg-preset-item" data-bg-url="static\下载 (1).jfif">
-                                    <img src="static\下载 (1).jfif" alt="抽象艺术">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg5.png">
+                                    <img src="static\sz-bg5.png" alt="未来科技竖屏1">
                                 </div>
-                                <div class="bg-preset-item" data-bg-url="static\下载 (2).jfif">
-                                    <img src="static\下载 (2).jfif" alt="科技">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg6.png">
+                                    <img src="static\sz-bg6.png" alt="未来科技竖屏2">
                                 </div>
                             </div>
                             
                             <!-- 第四行图片 -->
                             <div class="bg-presets-row">
-                                <div class="bg-preset-item" data-bg-url="static\下载 (3).jfif">
-                                    <img src="static\下载 (3).jfif" alt="宇宙">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg7.png">
+                                    <img src="static\sz-bg7.png" alt="未来科技竖屏3">
                                 </div>
-                                <div class="bg-preset-item" data-bg-url="static\下载.jfif">
-                                    <img src="static\下载.jfif" alt="极简">
+                                <div class="bg-preset-item" data-bg-url="static\sz-bg8.png">
+                                    <img src="static\sz-bg8.png" alt="未来科技竖屏4">
                                 </div>
                             </div>
                         </div>
@@ -2300,6 +2321,10 @@
         // 人脸检测控制变量
         window.useFaceDetection = true;
         
+        // 消息控制变量
+        window.messageInterrupt = true;
+        window.messageType = 'chat';
+        
         // 扩展window对象上的getter，在client.js中设置的值会更新到window对象
         Object.defineProperty(window, 'videoRatioWidth', {
             get: function() { return window._videoRatioWidth; },
@@ -2325,6 +2350,55 @@
             const successToast = document.getElementById('nb-success-toast');
             const toastMessage = document.getElementById('nb-toast-message');
             const faceDetectionToggle = document.getElementById('face-detection-toggle');
+            const interruptToggle = document.getElementById('interrupt-toggle');
+            const messageTypeSelect = document.getElementById('message-type-select');
+            
+            // 从localStorage加载打断和消息类型设置
+            try {
+                // 加载打断设置
+                const savedInterrupt = localStorage.getItem('messageInterrupt');
+                if (savedInterrupt !== null) {
+                    window.messageInterrupt = savedInterrupt === 'true';
+                    if (interruptToggle) {
+                        interruptToggle.checked = window.messageInterrupt;
+                    }
+                }
+                
+                // 加载消息类型设置
+                const savedMessageType = localStorage.getItem('messageType');
+                if (savedMessageType && messageTypeSelect) {
+                    window.messageType = savedMessageType;
+                    messageTypeSelect.value = window.messageType;
+                }
+            } catch (e) {
+                console.error('加载消息控制设置失败:', e);
+            }
+            
+            // 监听打断开关变化
+            if (interruptToggle) {
+                interruptToggle.addEventListener('change', function() {
+                    window.messageInterrupt = this.checked;
+                    try {
+                        localStorage.setItem('messageInterrupt', window.messageInterrupt);
+                        console.log(`消息打断已${window.messageInterrupt ? '开启' : '关闭'}`);
+                    } catch (e) {
+                        console.error('保存消息打断设置失败:', e);
+                    }
+                });
+            }
+            
+            // 监听消息类型选择变化
+            if (messageTypeSelect) {
+                messageTypeSelect.addEventListener('change', function() {
+                    window.messageType = this.value;
+                    try {
+                        localStorage.setItem('messageType', window.messageType);
+                        console.log(`消息类型已设置为: ${window.messageType}`);
+                    } catch (e) {
+                        console.error('保存消息类型设置失败:', e);
+                    }
+                });
+            }
             
             // 从localStorage加载人脸检测设置
             try {

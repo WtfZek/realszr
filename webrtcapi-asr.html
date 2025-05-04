@@ -1497,7 +1497,7 @@
                         </svg>
                         远程控制
                     </div>
-                    <div id="info_div">点击按钮开始建立远控链接</div>
+                    <div id="info_div" style="white-space: pre-line; line-height: 1.5; padding: 8px 12px; border-radius: 4px; background-color: #f5f5f5; margin-bottom: 10px; min-height: 24px;">点击按钮开始建立远控链接</div>
                     <div class="button-group">
                         <button id="connect-ws-btn" class="btn-success" onclick="connectToOCServer()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: text-bottom;">
@@ -1513,7 +1513,7 @@
                             断开连接
                         </button>
                     </div>
-                    <input type="hidden" id="sessionid" value="0">
+<!--                    <input type="hidden" id="sessionid" value="0">-->
                 </div>
 
                 <div class="modal-section" style="display: none;">
@@ -1822,9 +1822,9 @@
                     <div class="form-group">
                         <label for="toleranceSlider">抗锯齿系数</label>
                         <div class="range-container">
-                            <input type="range" id="antialiasingSlider" min="0" max="55" value="36">
+                            <input type="range" id="antialiasingSlider" min="0" max="255" value="36">
                             <!--                            <span class="range-value" id="toleranceValue">50</span>-->
-                            <input type="number" class="range-value" id="antialiasingValue" min="0" max="55" value="36">
+                            <input type="number" class="range-value" id="antialiasingValue" min="0" max="255" value="36">
                         </div>
                     </div>
                 </div>
@@ -2169,9 +2169,9 @@
                                     <label for="loop-mode">循环模式:</label>
                                     <div class="custom-select-wrapper" style="position: relative; display: inline-block; width: calc(100% - 80px);">
                                         <select id="loop-mode" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; width: 100%; border-radius: 4px; border: 1px solid var(--border-color); padding: 8px 30px 8px 10px; background-color: var(--bg-color); cursor: pointer;">
-                                            <option value="no-loop">不循环</option>
-                                            <option value="single">单曲循环</option>
                                             <option value="list">列表循环</option>
+                                            <option value="single">单曲循环</option>
+                                            <option value="no-loop">不循环</option>
                                             <option value="random">随机播放</option>
                                         </select>
                                         <div class="select-arrow" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;">

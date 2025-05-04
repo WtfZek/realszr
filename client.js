@@ -650,6 +650,8 @@ function stop() {
     // 使用cleanupResources函数关闭连接和清理资源
     // 不保存会话数据，因为这是用户主动停止
     cleanupResources({ saveSessionData: false });
+
+    disconnectFromServer();
     
     // 不再需要下面的代码，因为cleanupResources已经处理了
     // // 关闭WebSocket连接
@@ -1725,7 +1727,7 @@ async function getConfigOptions() {
 }
 
 function connectToOCServer() {
-    const wsUrl = `${window.wsProtocol}://localhost:8000/ws/client`;
+    const wsUrl = `${window.wsProtocol}://192.168.3.188:8000/ws/client`;
     // const wsUrl = `${window.wsProtocol}://${window.host}/ws/client`;
 
     console.log('有问题的ws链接:', wsUrl);
@@ -1755,16 +1757,21 @@ function connectToOCServer() {
             console.log('已连接到服务器，客户机ID:', clientId);
             // clientIdElement.textContent = clientId;
             // addMessage('系统', `已连接到服务器，客户机ID: ${clientId}`, 'system');
-            statusElement.textContent = `已连接到服务器，客户机ID位于中上方`+`\n`+`客户机ID: ${clientId}`;
+            statusElement.innerHTML = `已连接到服务器<br>客户机ID: <span style="color:#2196f3; font-weight:bold;">${clientId}</span>`;
             // statusElement.className = 'status status-connected';
         } else if (data.type === 'disconnecting') {
             // addMessage('系统', '正在断开与服务器的连接...', 'system');
             statusElement.textContent = '正在断开与服务器的连接...';
         } else if (data.type === 'message') {
+            // 处理消息
+            let newType = window.messageType;
+            if (data.new_type === 'echo' || data.new_type === 'chat') {
+                newType = data.new_type;
+            }
             // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
-            statusElement.textContent = `用户 ${data.user_id}: ${data.message}`;
+            // statusElement.textContent = `用户yi ${data.user_id}: ${data.message}`;
 
-            console.log("data.message",data.message)
+            // console.log("data.message",data.message)
 
             addChatMessage(data.message, 'right', false, 'audio');
 
@@ -1781,7 +1788,7 @@ function connectToOCServer() {
             fetch(`${window.protocol}://${window.host}/human`, {
                 body: JSON.stringify({
                     text: data.message,
-                    type: window.messageType,
+                    type: newType,
                     interrupt: window.messageInterrupt,
                     sessionid: parseInt(document.getElementById('sessionid').value),
                 }),
@@ -1803,13 +1810,6 @@ function connectToOCServer() {
                 // 可以在聊天窗口中添加错误提示
                 addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
             });
-        } else if (data.type === 'type_change') {
-            console.log('收到echo消息:', data.message);
-            window.messageType = data.message;
-            const messageTypeSelect = document.getElementById('message-type-select');
-            if (messageTypeSelect) {
-                messageTypeSelect.value = data.message;
-            }
         }
     };
     

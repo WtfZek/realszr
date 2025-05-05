@@ -3,6 +3,15 @@ var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 var videoElement;
 
+// 数字人缩小后的宽度（单位：像素）
+window.digitalHumanWidth = 500;
+
+// 数字人位置模式：0=随机位置，1=始终左下角，2=始终右下角，3=左右交替
+window.digitalHumanPositionMode = 3;
+
+// 跟踪左右交替模式的上一次位置，true表示上次在左边，false表示上次在右边
+let lastPositionWasLeft = true;
+
 // 音频延迟变量（单位：毫秒）
 let audioDelay = 0;
 
@@ -1302,6 +1311,9 @@ function testChatMedia() {
 // 如需测试，可以在浏览器控制台中调用testChatMedia()函数
 // addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', false);
 
+// 添加全局计时器变量
+let techPlayerAutoCloseTimer = null;
+
 /**
  * 在科技感播放框中显示媒体内容
  * @param {string} url - 媒体URL
@@ -1310,6 +1322,12 @@ function testChatMedia() {
  * @param {boolean} alignLeft - 是否左对齐播放框，默认根据上一次位置交替
  */
 function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
+    // 先清除可能存在的自动关闭计时器
+    if (techPlayerAutoCloseTimer) {
+        clearTimeout(techPlayerAutoCloseTimer);
+        techPlayerAutoCloseTimer = null;
+    }
+    
     // 获取播放框和内容区域
     const player = document.getElementById('tech-media-player');
     const content = player.querySelector('.tech-media-content');
@@ -1318,11 +1336,11 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     // 清空现有内容
     content.innerHTML = '';
     
-    // 交替左右对齐（如果没有明确指定）
-    if (alignLeft === undefined) {
-        // 保存上一次的对齐方式，实现交替效果
-        window.lastPlayerAlignLeft = window.lastPlayerAlignLeft === undefined ? true : !window.lastPlayerAlignLeft;
-        alignLeft = window.lastPlayerAlignLeft;
+    // 获取数字人画布
+    const canvas = document.getElementById('canvas');
+    if (!canvas) {
+        console.error('找不到数字人画布元素');
+        return;
     }
     
     // 创建媒体元素
@@ -1335,15 +1353,13 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         mediaElement.src = url;
         mediaElement.autoplay = true;
         mediaElement.controls = true;
+        // 添加视频播放结束事件监听器
+        mediaElement.addEventListener('ended', function() {
+            console.log('视频播放结束，自动关闭播放器');
+            closeTechMediaPlayer();
+        });
     } else {
         console.error('不支持的媒体类型:', type);
-        return;
-    }
-    
-    // 获取数字人画布
-    const canvas = document.getElementById('canvas');
-    if (!canvas) {
-        console.error('找不到数字人画布元素');
         return;
     }
     
@@ -1361,49 +1377,86 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         const windowHeight = window.innerHeight;
         
         // 根据媒体比例设置播放框尺寸
+        let playerWidth, playerHeight;
         if (aspectRatio > 1) { // 宽大于高
             // 宽度占屏幕的3/5，高度根据比例确定
-            const width = windowWidth * 0.6;
-            const height = width / aspectRatio;
-            playerInner.style.width = `${width}px`;
-            playerInner.style.height = `${height}px`;
+            playerWidth = windowWidth * 0.6;
+            playerHeight = playerWidth / aspectRatio;
         } else { // 高大于宽
             // 高度占屏幕的80%，宽度根据比例确定
-            const height = windowHeight * 0.8;
-            const width = height * aspectRatio;
-            playerInner.style.width = `${width}px`;
-            playerInner.style.height = `${height}px`;
+            playerHeight = windowHeight * 0.8;
+            playerWidth = playerHeight * aspectRatio;
         }
         
-        // 设置播放框位置 (左或右)
+        // 设置播放框尺寸
+        playerInner.style.width = `${playerWidth}px`;
+        playerInner.style.height = `${playerHeight}px`;
+        
+        // 根据数字人位置模式决定数字人位置
+        let digitalHumanOnLeft = false;
+        
+        // 根据位置模式设置数字人位置
+        switch(window.digitalHumanPositionMode) {
+            case 1: // 始终左下角
+                digitalHumanOnLeft = true;
+                console.log('数字人固定放置在左下角');
+                break;
+            case 2: // 始终右下角
+                digitalHumanOnLeft = false;
+                console.log('数字人固定放置在右下角');
+                break;
+            case 3: // 左右交替
+                // 与上次位置相反
+                digitalHumanOnLeft = !lastPositionWasLeft;
+                console.log(`数字人交替放置在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                // 更新位置记录
+                lastPositionWasLeft = digitalHumanOnLeft;
+                break;
+            case 0: // 随机位置
+            default:
+                digitalHumanOnLeft = Math.random() > 0.5;
+                console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                break;
+        }
+        
+        // 获取媒体容器
+        const mediaDiv = document.getElementById('media');
+        if (!mediaDiv) {
+            console.error('找不到media容器元素');
+            return;
+        }
+        
+        // 设置播放框位置
         playerInner.style.position = 'absolute';
-        if (alignLeft) {
-            playerInner.style.left = '5%';
+        
+        // 根据数字人位置和播放框宽度决定播放框位置
+        if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
+            // 如果播放框足够小，则居中显示
+            const leftPosition = (windowWidth - playerWidth) / 2;
+            playerInner.style.left = `${leftPosition}px`;
             playerInner.style.right = 'auto';
         } else {
-            playerInner.style.right = '5%';
-            playerInner.style.left = 'auto';
+            // 如果播放框较大，则根据数字人位置放在另一侧
+            if (digitalHumanOnLeft) {
+                // 数字人在左侧，播放框在右侧居中
+                const rightAreaWidth = windowWidth - window.digitalHumanWidth;
+                const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+                playerInner.style.left = `${leftPosition}px`;
+                playerInner.style.right = 'auto';
+            } else {
+                // 数字人在右侧，播放框在左侧居中
+                const leftAreaWidth = windowWidth - window.digitalHumanWidth;
+                const leftPosition = (leftAreaWidth - playerWidth) / 2;
+                playerInner.style.left = `${leftPosition}px`;
+                playerInner.style.right = 'auto';
+            }
         }
         
         // 添加active类以显示播放框
         player.classList.add('active');
         
         // 使用moveDigitalHumanForMedia移动数字人到对应位置
-        moveDigitalHumanForMedia(canvas, alignLeft);
-        
-        // 处理媒体播放结束
-        const handleEnd = function() {
-            // 关闭播放框
-            closeTechMediaPlayer();
-        };
-        
-        if (type === 'image') {
-            // 图片显示指定时间后关闭
-            setTimeout(handleEnd, displayTime * 1000);
-        } else if (type === 'video') {
-            // 视频播放完毕后关闭
-            mediaElement.onended = handleEnd;
-        }
+        moveDigitalHumanForMedia(canvas, digitalHumanOnLeft);
     };
     
     // 图片加载失败处理
@@ -1411,12 +1464,26 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         console.error('媒体加载失败:', url);
         closeTechMediaPlayer();
     };
+    
+    // 如果是图片，设置自动关闭定时器
+    if (type === 'image' && displayTime > 0) {
+        techPlayerAutoCloseTimer = setTimeout(function() {
+            console.log(`图片显示${displayTime}秒后自动关闭`);
+            closeTechMediaPlayer();
+        }, displayTime * 1000);
+    }
 }
 
 /**
  * 关闭科技感播放框
  */
 function closeTechMediaPlayer() {
+    // 清除自动关闭计时器
+    if (techPlayerAutoCloseTimer) {
+        clearTimeout(techPlayerAutoCloseTimer);
+        techPlayerAutoCloseTimer = null;
+    }
+    
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');
     
@@ -2050,9 +2117,9 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
 /**
  * 移动数字人到媒体播放框的相对位置
  * @param {HTMLElement} canvas - 数字人画布元素
- * @param {boolean} mediaOnLeft - 媒体是否在左侧
+ * @param {boolean} digitalHumanOnLeft - 数字人是否放在左侧
  */
-function moveDigitalHumanForMedia(canvas, mediaOnLeft) {
+function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     // 获取media容器
     const mediaDiv = document.getElementById('media');
     if (!mediaDiv) {
@@ -2077,38 +2144,27 @@ function moveDigitalHumanForMedia(canvas, mediaOnLeft) {
         };
     }
     
-    // 设置数字人的目标位置
-    let targetPosition;
-    if (mediaOnLeft) {
-        // 媒体在左侧，数字人放右下角
-        targetPosition = 'rightBottom';
-    } else {
-        // 媒体在右侧，数字人放左下角
-        targetPosition = 'leftBottom';
-    }
-    
-    // 固定宽度为350px，并保持原始宽高比
-    const fixedWidth = 300;
+    // 使用全局变量控制数字人宽度并保持原始宽高比
     const aspectRatio = canvasWidth / canvasHeight;
-    const fixedHeight = fixedWidth / aspectRatio;
+    const fixedHeight = window.digitalHumanWidth / aspectRatio;
     
     // 根据位置计算具体坐标
     let left, top;
     
-    if (targetPosition === 'rightBottom') {
-        // 右下角
-        left = mediaDivRect.width - fixedWidth;
-        top = mediaDivRect.height - fixedHeight;
-    } else if (targetPosition === 'leftBottom') {
-        // 左下角
+    if (digitalHumanOnLeft) {
+        // 数字人在左下角
         left = 0;
+        top = mediaDivRect.height - fixedHeight;
+    } else {
+        // 数字人在右下角
+        left = mediaDivRect.width - window.digitalHumanWidth;
         top = mediaDivRect.height - fixedHeight;
     }
     
     // 应用样式变化
     canvas.style.position = 'absolute';
     canvas.style.zIndex = '1000';
-    canvas.style.width = `${fixedWidth}px`;
+    canvas.style.width = `${window.digitalHumanWidth}px`;
     canvas.style.height = `${fixedHeight}px`;
     canvas.style.left = `${left}px`;
     canvas.style.top = `${top}px`;

@@ -1302,6 +1302,153 @@ function testChatMedia() {
 // 如需测试，可以在浏览器控制台中调用testChatMedia()函数
 // addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', false);
 
+/**
+ * 在科技感播放框中显示媒体内容
+ * @param {string} url - 媒体URL
+ * @param {string} type - 媒体类型，'image' 或 'video'
+ * @param {number} displayTime - 图片显示时间（秒），默认5秒
+ * @param {boolean} alignLeft - 是否左对齐播放框，默认根据上一次位置交替
+ */
+function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
+    // 获取播放框和内容区域
+    const player = document.getElementById('tech-media-player');
+    const content = player.querySelector('.tech-media-content');
+    const playerInner = player.querySelector('.tech-media-player-inner');
+    
+    // 清空现有内容
+    content.innerHTML = '';
+    
+    // 交替左右对齐（如果没有明确指定）
+    if (alignLeft === undefined) {
+        // 保存上一次的对齐方式，实现交替效果
+        window.lastPlayerAlignLeft = window.lastPlayerAlignLeft === undefined ? true : !window.lastPlayerAlignLeft;
+        alignLeft = window.lastPlayerAlignLeft;
+    }
+    
+    // 创建媒体元素
+    let mediaElement;
+    if (type === 'image') {
+        mediaElement = document.createElement('img');
+        mediaElement.src = url;
+    } else if (type === 'video') {
+        mediaElement = document.createElement('video');
+        mediaElement.src = url;
+        mediaElement.autoplay = true;
+        mediaElement.controls = true;
+    } else {
+        console.error('不支持的媒体类型:', type);
+        return;
+    }
+    
+    // 获取数字人画布
+    const canvas = document.getElementById('canvas');
+    if (!canvas) {
+        console.error('找不到数字人画布元素');
+        return;
+    }
+    
+    // 添加媒体元素到播放框
+    content.appendChild(mediaElement);
+    
+    // 当媒体加载完成后，设置尺寸和位置
+    mediaElement.onload = mediaElement.onloadedmetadata = function() {
+        // 获取原始媒体比例
+        const mediaWidth = this.naturalWidth || this.videoWidth;
+        const mediaHeight = this.naturalHeight || this.videoHeight;
+        const aspectRatio = mediaWidth / mediaHeight;
+        
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        // 根据媒体比例设置播放框尺寸
+        if (aspectRatio > 1) { // 宽大于高
+            // 宽度占屏幕的3/5，高度根据比例确定
+            const width = windowWidth * 0.6;
+            const height = width / aspectRatio;
+            playerInner.style.width = `${width}px`;
+            playerInner.style.height = `${height}px`;
+        } else { // 高大于宽
+            // 高度占屏幕的80%，宽度根据比例确定
+            const height = windowHeight * 0.8;
+            const width = height * aspectRatio;
+            playerInner.style.width = `${width}px`;
+            playerInner.style.height = `${height}px`;
+        }
+        
+        // 设置播放框位置 (左或右)
+        playerInner.style.position = 'absolute';
+        if (alignLeft) {
+            playerInner.style.left = '5%';
+            playerInner.style.right = 'auto';
+        } else {
+            playerInner.style.right = '5%';
+            playerInner.style.left = 'auto';
+        }
+        
+        // 添加active类以显示播放框
+        player.classList.add('active');
+        
+        // 使用moveDigitalHumanForMedia移动数字人到对应位置
+        moveDigitalHumanForMedia(canvas, alignLeft);
+        
+        // 处理媒体播放结束
+        const handleEnd = function() {
+            // 关闭播放框
+            closeTechMediaPlayer();
+        };
+        
+        if (type === 'image') {
+            // 图片显示指定时间后关闭
+            setTimeout(handleEnd, displayTime * 1000);
+        } else if (type === 'video') {
+            // 视频播放完毕后关闭
+            mediaElement.onended = handleEnd;
+        }
+    };
+    
+    // 图片加载失败处理
+    mediaElement.onerror = function() {
+        console.error('媒体加载失败:', url);
+        closeTechMediaPlayer();
+    };
+}
+
+/**
+ * 关闭科技感播放框
+ */
+function closeTechMediaPlayer() {
+    const player = document.getElementById('tech-media-player');
+    const canvas = document.getElementById('canvas');
+    
+    if (!player || !canvas) return;
+    
+    // 移除active类，触发淡出动画
+    player.classList.remove('active');
+    
+    // 恢复数字人原始样式
+    if (canvas.originalStyle) {
+        // 添加过渡动画
+        canvas.style.transition = 'all 0.5s ease-in-out';
+        
+        // 恢复原始样式
+        Object.keys(canvas.originalStyle).forEach(key => {
+            canvas.style[key] = canvas.originalStyle[key];
+        });
+        
+        // 动画结束后清除transition
+        setTimeout(() => {
+            canvas.style.transition = '';
+            delete canvas.originalStyle;
+        }, 500);
+    }
+    
+    // 清空媒体内容
+    setTimeout(() => {
+        const content = player.querySelector('.tech-media-content');
+        if (content) content.innerHTML = '';
+    }, 500);
+}
+
 // 页面完全加载后的处理
 window.onload = function() {
     console.log('Window 已完全加载');
@@ -1324,6 +1471,31 @@ window.onload = function() {
             // 测试添加媒体消息
             testChatMedia();
         });
+    }
+    
+    // 为测试媒体播放框按钮添加事件监听器
+    const testMediaPlayerBtn = document.getElementById('test-media-player-btn');
+    if (testMediaPlayerBtn) {
+        testMediaPlayerBtn.addEventListener('click', function() {
+            console.log('点击了测试媒体播放框按钮');
+            
+            // 随机选择图片或视频进行测试
+            const isVideo = Math.random() > 0.5;
+            
+            if (isVideo) {
+                // 测试视频
+                window.showMediaContentInPlayer('https://www.w3schools.com/html/movie.mp4', 'video');
+            } else {
+                // 测试图片
+                window.showMediaContentInPlayer('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 5);
+            }
+        });
+    }
+    
+    // 为媒体播放框关闭按钮添加事件监听器
+    const techPlayerCloseBtn = document.querySelector('.tech-player-close');
+    if (techPlayerCloseBtn) {
+        techPlayerCloseBtn.addEventListener('click', closeTechMediaPlayer);
     }
     
     // 尝试查找聊天内容容器
@@ -1847,4 +2019,98 @@ function disconnectFromServer() {
         // 如果连接未打开，直接更新UI状态
         document.getElementById('info_div').textContent = '状态: 未连接';
     }
+}
+
+/**
+ * 对外暴露的方法，用于在科技感播放框中显示图片或视频
+ * @param {string} url - 媒体URL
+ * @param {string} type - 媒体类型('image'或'video')
+ * @param {number} displayTime - 图片显示时间(秒)，默认5秒，仅对图片有效
+ * @param {boolean} alignLeft - 是否左对齐播放框，不指定则交替
+ */
+window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5, alignLeft) {
+    if (!url) {
+        console.error('URL不能为空');
+        return;
+    }
+    
+    // 检查媒体类型
+    if (type !== 'image' && type !== 'video') {
+        console.error('不支持的媒体类型:', type);
+        return;
+    }
+    
+    // 确保displayTime为有效数字
+    displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
+    
+    // 播放媒体
+    showMediaInTechPlayer(url, type, displayTime, alignLeft);
+};
+
+/**
+ * 移动数字人到媒体播放框的相对位置
+ * @param {HTMLElement} canvas - 数字人画布元素
+ * @param {boolean} mediaOnLeft - 媒体是否在左侧
+ */
+function moveDigitalHumanForMedia(canvas, mediaOnLeft) {
+    // 获取media容器
+    const mediaDiv = document.getElementById('media');
+    if (!mediaDiv) {
+        console.error('找不到media容器元素');
+        return;
+    }
+    
+    const mediaDivRect = mediaDiv.getBoundingClientRect();
+    const canvasWidth = canvas.offsetWidth;
+    const canvasHeight = canvas.offsetHeight;
+    
+    // 首先保存原始样式，方便还原
+    if (!canvas.originalStyle) {
+        canvas.originalStyle = {
+            position: canvas.style.position,
+            top: canvas.style.top,
+            left: canvas.style.left,
+            width: canvas.style.width,
+            height: canvas.style.height,
+            transform: canvas.style.transform,
+            zIndex: canvas.style.zIndex
+        };
+    }
+    
+    // 设置数字人的目标位置
+    let targetPosition;
+    if (mediaOnLeft) {
+        // 媒体在左侧，数字人放右下角
+        targetPosition = 'rightBottom';
+    } else {
+        // 媒体在右侧，数字人放左下角
+        targetPosition = 'leftBottom';
+    }
+    
+    // 固定宽度为350px，并保持原始宽高比
+    const fixedWidth = 300;
+    const aspectRatio = canvasWidth / canvasHeight;
+    const fixedHeight = fixedWidth / aspectRatio;
+    
+    // 根据位置计算具体坐标
+    let left, top;
+    
+    if (targetPosition === 'rightBottom') {
+        // 右下角
+        left = mediaDivRect.width - fixedWidth;
+        top = mediaDivRect.height - fixedHeight;
+    } else if (targetPosition === 'leftBottom') {
+        // 左下角
+        left = 0;
+        top = mediaDivRect.height - fixedHeight;
+    }
+    
+    // 应用样式变化
+    canvas.style.position = 'absolute';
+    canvas.style.zIndex = '1000';
+    canvas.style.width = `${fixedWidth}px`;
+    canvas.style.height = `${fixedHeight}px`;
+    canvas.style.left = `${left}px`;
+    canvas.style.top = `${top}px`;
+    canvas.style.transition = 'all 0.5s ease-in-out';
 }

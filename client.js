@@ -4,7 +4,7 @@ var ctx = canvas.getContext('2d');
 var videoElement;
 
 // 数字人缩小后的宽度（单位：像素）
-window.digitalHumanWidth = 500;
+window.digitalHumanWidth = 320;
 
 // 数字人位置模式：0=随机位置，1=始终左下角，2=始终右下角，3=左右交替
 window.digitalHumanPositionMode = 3;
@@ -1548,13 +1548,22 @@ window.onload = function() {
             
             // 随机选择图片或视频进行测试
             const isVideo = Math.random() > 0.5;
+            const isOne = Math.random() > 0.5;
             
             if (isVideo) {
                 // 测试视频
-                window.showMediaContentInPlayer('https://www.w3schools.com/html/movie.mp4', 'video');
+                if (isOne) {
+                    window.showMediaContentInPlayer('./static/videos/tcq.mp4', 'video');
+                } else {
+                    window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+                }
             } else {
                 // 测试图片
-                window.showMediaContentInPlayer('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 5);
+                if (isOne) {
+                    window.showMediaContentInPlayer('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 5);
+                } else {
+                    window.showMediaContentInPlayer('./static/sz-bg1.png', 'image', 5);
+                }
             }
         });
     }

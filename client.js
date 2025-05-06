@@ -4,7 +4,7 @@ var ctx = canvas.getContext('2d');
 var videoElement;
 
 // 数字人缩小后的宽度（单位：像素）
-window.digitalHumanWidth = 320;
+window.digitalHumanWidth = 100;
 
 // 数字人位置模式：0=随机位置，1=始终左下角，2=始终右下角，3=左右交替
 window.digitalHumanPositionMode = 3;
@@ -948,19 +948,19 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
     // 替换为switch参数type来决定头像
     switch (type) {
         case 'audio':
-            avatar.src = './static/audio.png';
+            avatar.src = './static/images/icons/audio.png';
             break;
         case 'text':
-            avatar.src = './static/text.png';
+            avatar.src = './static/images/icons/text.png';
             break;
         case 'image':
-            avatar.src = './static/image.png';
+            avatar.src = './static/images/icons/image.png';
             break;
         case 'video':
-            avatar.src = './static/video.png';
+            avatar.src = './static/images/icons/video.png';
             break;
         default:
-            avatar.src = './static/szr.png';
+            avatar.src = './static/images/icons/szr.png';
             break;
     }
     avatar.style.width = '24px';
@@ -1029,7 +1029,7 @@ function addChatMedia(mediaSource, mediaType, position, type) {
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    avatar.src = './static/media.png';
+    avatar.src = './static/images/media.png';
     avatar.style.width = '24px';
     avatar.style.height = '24px';
     avatar.style.borderRadius = '50%';
@@ -1562,7 +1562,7 @@ window.onload = function() {
                 if (isOne) {
                     window.showMediaContentInPlayer('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 5);
                 } else {
-                    window.showMediaContentInPlayer('./static/sz-bg1.png', 'image', 5);
+                    window.showMediaContentInPlayer('./static/images/sz-bg1.png', 'image', 5);
                 }
             }
         });

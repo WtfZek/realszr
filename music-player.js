@@ -29,6 +29,28 @@ document.addEventListener('DOMContentLoaded', function() {
     let loopTimerId = null;
     let selectedItemIndex = -1; // 新增：当前选中的项目索引
     
+    // 暴露全局添加音乐方法，供外部调用
+    window.addMusicItem = function(musicItem) {
+        // 检查是否已经存在相同名称的音乐
+        const exists = playlist.some(item => item.name === musicItem.name);
+        if (exists) {
+            console.log(`音乐 ${musicItem.name} 已存在于播放列表中`);
+            return false;
+        }
+        
+        // 添加到播放列表
+        playlist.push(musicItem);
+        
+        // 更新播放列表显示
+        updatePlaylistDisplay();
+        
+        // 保存播放列表到localStorage
+        savePlaylistToStorage();
+        
+        console.log(`已添加音乐 ${musicItem.name} 到播放列表`);
+        return true;
+    };
+    
     // 初始化播放器
     function initPlayer() {
         // 设置音量
@@ -131,8 +153,8 @@ document.addEventListener('DOMContentLoaded', function() {
             savePlaylistToStorage();
         });
         
-        // 从localStorage加载播放列表
-        loadPlaylistFromStorage();
+        // 不再从localStorage加载播放列表
+        // loadPlaylistFromStorage();
         
         // 更新按钮图标
         updateButtonIcons();
@@ -160,51 +182,17 @@ document.addEventListener('DOMContentLoaded', function() {
         updatePlayPauseButton();
     }
     
-    // 保存播放列表到localStorage（保存文件名和文件路径）
+    // 保存播放列表到localStorage（仅保存文件名，不再保存路径以避免安全问题）
     function savePlaylistToStorage() {
         try {
             // 保存名称
             const playlistNames = playlist.map(track => track.name);
             localStorage.setItem('music_playlist_names', JSON.stringify(playlistNames));
             
-            // 保存文件URL和类型信息
-            const playlistUrls = playlist.map(track => ({
-                name: track.name,
-                type: track.file ? track.file.type : null,
-                lastModified: track.file ? track.file.lastModified : null,
-                size: track.file ? track.file.size : null
-            }));
-            localStorage.setItem('music_playlist_info', JSON.stringify(playlistUrls));
+            // 不再保存文件URL和详细信息
+            // localStorage.setItem('music_playlist_info', JSON.stringify(playlistUrls));
         } catch (e) {
             console.error('保存播放列表失败:', e);
-        }
-    }
-    
-    // 从localStorage加载播放列表
-    function loadPlaylistFromStorage() {
-        try {
-            const savedInfo = localStorage.getItem('music_playlist_info');
-            if (savedInfo) {
-                const trackInfos = JSON.parse(savedInfo);
-                
-                if (trackInfos.length > 0) {
-                    // 显示提示，要求用户重新选择文件
-                    nowPlayingInfo.textContent = `从上次会话恢复了 ${trackInfos.length} 首曲目信息，请重新选择相同的文件`;
-                    
-                    // 在UI上显示历史列表，但不包含音频源
-                    playlist = trackInfos.map(info => ({
-                        name: info.name,
-                        file: null,
-                        url: null,
-                        fileInfo: info
-                    }));
-                    
-                    // 更新播放列表显示
-                    updatePlaylistDisplay();
-                }
-            }
-        } catch (e) {
-            console.error('加载播放列表失败:', e);
         }
     }
     
@@ -213,91 +201,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = event.target.files;
         if (files.length === 0) return;
         
-        // 检查是否有待恢复的播放列表项
-        const hasPendingRestore = playlist.some(item => item.url === null);
-        
-        if (hasPendingRestore) {
-            // 尝试匹配并恢复播放列表项
-            const restoredPlaylist = [];
-            let restoredCount = 0;
-            
-            // 遍历现有播放列表
-            playlist.forEach(item => {
-                // 为每个项寻找匹配的文件
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const fileInfo = item.fileInfo;
-                    
-                    // 通过文件名、大小、修改时间和类型匹配
-                    if (file.name === item.name && 
-                        (!fileInfo.size || file.size === fileInfo.size) && 
-                        (!fileInfo.lastModified || file.lastModified === fileInfo.lastModified) &&
-                        (!fileInfo.type || file.type === fileInfo.type)) {
-                        
-                        // 找到匹配的文件，恢复此项
-                        restoredPlaylist.push({
-                            name: file.name,
-                            file: file,
-                            url: URL.createObjectURL(file),
-                            fileInfo: {
-                                name: file.name,
-                                type: file.type,
-                                lastModified: file.lastModified,
-                                size: file.size
-                            }
-                        });
-                        
-                        restoredCount++;
-                        break;
+        // 不再检查是否有待恢复的播放列表项
+        // 不再尝试匹配并恢复播放列表项
+        // 直接添加所有文件到播放列表
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.type.startsWith('audio/')) {
+                playlist.push({
+                    name: file.name,
+                    file: file,
+                    url: URL.createObjectURL(file),
+                    fileInfo: {
+                        name: file.name,
+                        type: file.type,
+                        lastModified: file.lastModified,
+                        size: file.size
                     }
-                }
-            });
-            
-            // 将未找到的文件添加到播放列表
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                
-                // 检查是否已经添加
-                const isAlreadyAdded = restoredPlaylist.some(item => 
-                    item.file && item.file.name === file.name && 
-                    item.file.lastModified === file.lastModified && 
-                    item.file.size === file.size
-                );
-                
-                if (!isAlreadyAdded && file.type.startsWith('audio/')) {
-                    restoredPlaylist.push({
-                        name: file.name,
-                        file: file,
-                        url: URL.createObjectURL(file),
-                        fileInfo: {
-                            name: file.name,
-                            type: file.type,
-                            lastModified: file.lastModified,
-                            size: file.size
-                        }
-                    });
-                }
-            }
-            
-            playlist = restoredPlaylist;
-            nowPlayingInfo.textContent = `已恢复 ${restoredCount} 首曲目，并添加新曲目到播放列表`;
-        } else {
-            // 没有待恢复的项，直接添加所有文件到播放列表
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (file.type.startsWith('audio/')) {
-                    playlist.push({
-                        name: file.name,
-                        file: file,
-                        url: URL.createObjectURL(file),
-                        fileInfo: {
-                            name: file.name,
-                            type: file.type,
-                            lastModified: file.lastModified,
-                            size: file.size
-                        }
-                    });
-                }
+                });
             }
         }
         

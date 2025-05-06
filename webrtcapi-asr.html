@@ -2023,17 +2023,17 @@
                     <div class="form-group">
                         <label for="toleranceSlider">绿幕识别容差</label>
                         <div class="range-container">
-                            <input type="range" id="toleranceSlider" min="0" max="255" value="36">
+                            <input type="range" id="toleranceSlider" min="0" max="255" value="40">
 <!--                            <span class="range-value" id="toleranceValue">50</span>-->
-                            <input type="number" class="range-value" id="toleranceValue" min="0" max="255" value="36">
+                            <input type="number" class="range-value" id="toleranceValue" min="0" max="255" value="40">
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="toleranceSlider">抗锯齿系数</label>
                         <div class="range-container">
-                            <input type="range" id="antialiasingSlider" min="0" max="255" value="36">
+                            <input type="range" id="antialiasingSlider" min="0" max="255" value="125">
                             <!--                            <span class="range-value" id="toleranceValue">50</span>-->
-                            <input type="number" class="range-value" id="antialiasingValue" min="0" max="255" value="36">
+                            <input type="number" class="range-value" id="antialiasingValue" min="0" max="255" value="125">
                         </div>
                     </div>
                 </div>
@@ -5948,5 +5948,73 @@
     </script>
     <!-- 引入音乐播放器脚本 -->
     <script src="music-player.js"></script>
+
+    <!-- 添加背景音乐预设 -->
+    <script>
+        // 简便的预设音乐添加函数
+        window.addDefaultMusic = function(path, name = null) {
+            // 如果没有提供名称，从路径中提取
+            if (!name) {
+                const parts = path.split('/');
+                name = parts[parts.length - 1];
+            }
+            
+            console.log(`尝试添加预设音乐: ${name} (${path})`);
+            
+            // 检查播放列表中是否已存在该音乐
+            if (window.addMusicItem) {
+                // 创建音频元素加载音频
+                const audio = new Audio(path);
+                
+                // 监听元数据加载完成事件
+                audio.addEventListener('loadedmetadata', function() {
+                    // 创建音乐项
+                    const musicItem = {
+                        name: name,
+                        url: path,
+                        fileInfo: {
+                            name: name,
+                            type: 'audio/mp3',
+                            lastModified: new Date().getTime(),
+                            size: 0
+                        }
+                    };
+                    
+                    // 添加到播放列表
+                    window.addMusicItem(musicItem);
+                    console.log(`成功添加预设音乐: ${name}`);
+                });
+                
+                // 处理加载错误
+                audio.addEventListener('error', function() {
+                    console.error(`预设音乐加载失败: ${path}`);
+                });
+                
+                // 加载音频
+                audio.load();
+            } else {
+                console.log('音乐播放器尚未初始化，将在初始化后添加');
+                // 添加一个DOMContentLoaded事件监听器
+                document.addEventListener('DOMContentLoaded', function checkPlayer() {
+                    if (window.addMusicItem) {
+                        window.addDefaultMusic(path, name);
+                        document.removeEventListener('DOMContentLoaded', checkPlayer);
+                    }
+                });
+            }
+            return true;
+        };
+        
+        // 初始化预设背景音乐
+        document.addEventListener('DOMContentLoaded', function() {
+            // 添加默认背景音乐，只需一行代码
+            window.addDefaultMusic('./static/music/bgm.mp3');
+            window.addDefaultMusic('./static/music/bgm1.mp3');
+            
+            // 后续如需添加更多预设音乐，只需添加类似下面的代码：
+            // window.addDefaultMusic('./static/music/另一首音乐.mp3');
+            // window.addDefaultMusic('./static/music/custom.mp3', '自定义名称');
+        });
+    </script>
 </body>
 </html>

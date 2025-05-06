@@ -5486,7 +5486,7 @@
                 // autoHideElements.forEach(el=>resetAutoHideTimer(el));
             });
             document.addEventListener('touchstart', ()=>{
-                检查是否在播放媒体
+                // 检查是否在播放媒体
                 const player = document.getElementById('tech-media-player');
                 if (player && player.classList.contains('active')) {
                     return; // 如果正在播放媒体，不重置UI显示

@@ -1396,23 +1396,27 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
         
+        // 判断是否为小屏幕设备（宽度小于800px）
+        const isSmallScreen = windowWidth < 800;
+        console.log(`屏幕宽度: ${windowWidth}px, 是否小屏幕: ${isSmallScreen}`);
+        
         // 根据媒体比例设置播放框尺寸
         let playerWidth, playerHeight;
         if (aspectRatio > 1) { // 宽大于高
             // 宽度占屏幕的3/5，高度根据比例确定
-            playerWidth = windowWidth * 0.6;
+            playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.6);
             playerHeight = playerWidth / aspectRatio;
         } else { // 高大于宽
             // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
-            playerHeight = windowHeight * 0.8;
+            playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.8);
             
             // 计算16:9比例的播放框宽度
             const playerAspectRatio = 16/9;
             playerWidth = playerHeight * (9/16);
             
-            // 如果播放框宽度超过窗口宽度的80%，则缩小高度
-            if (playerWidth > windowWidth * 0.8) {
-                playerWidth = windowWidth * 0.8;
+            // 如果播放框宽度超过窗口宽度的限制，则缩小高度
+            if (playerWidth > windowWidth * (isSmallScreen ? 0.9 : 0.8)) {
+                playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.8);
                 playerHeight = playerWidth * (16/9);
             }
             
@@ -1446,71 +1450,93 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
             console.log(`竖版图片实际显示尺寸: ${imgWidth}x${imgHeight}`);
         }
         
-        // 根据数字人位置模式决定数字人位置
-        let digitalHumanOnLeft = false;
-        
-        // 根据位置模式设置数字人位置
-        switch(window.digitalHumanPositionMode) {
-            case 1: // 始终左下角
-                digitalHumanOnLeft = true;
-                console.log('数字人固定放置在左下角');
-                break;
-            case 2: // 始终右下角
-                digitalHumanOnLeft = false;
-                console.log('数字人固定放置在右下角');
-                break;
-            case 3: // 左右交替
-                // 与上次位置相反
-                digitalHumanOnLeft = !lastPositionWasLeft;
-                console.log(`数字人交替放置在${digitalHumanOnLeft ? '左' : '右'}下角`);
-                // 更新位置记录
-                lastPositionWasLeft = digitalHumanOnLeft;
-                break;
-            case 0: // 随机位置
-            default:
-                digitalHumanOnLeft = Math.random() > 0.5;
-                console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
-                break;
-        }
-        
-        // 获取媒体容器
-        const mediaDiv = document.getElementById('media');
-        if (!mediaDiv) {
-            console.error('找不到media容器元素');
-            return;
-        }
-        
         // 设置播放框位置
         playerInner.style.position = 'absolute';
         
-        // 对于竖版图片(高>宽)，始终让播放框水平居中显示
-        if (aspectRatio < 1) {
-            // 竖版图片，始终居中显示
-            const leftPosition = (windowWidth - playerWidth) / 2;
+        // 默认将数字人位置设为null
+        let digitalHumanPosition = null;
+        
+        if (isSmallScreen) {
+            // 小屏幕设备
+            let leftPosition;
+            
+            // 对于竖图或竖视频(短视频)使用特殊的居中逻辑
+            if (aspectRatio < 1) {
+                // 特殊计算方式
+                leftPosition = (windowWidth - 2*playerWidth) / 2;
+                console.log('小屏幕竖图/短视频：特殊居中逻辑，左边距:', leftPosition);
+            } else {
+                // 其他类型媒体使用普通居中逻辑
+                leftPosition = (windowWidth - playerWidth) / 2;
+                console.log('小屏幕横版媒体：普通居中逻辑，左边距:', leftPosition);
+            }
+            
             playerInner.style.left = `${leftPosition}px`;
-            playerInner.style.right = 'auto';
-            console.log('竖版媒体：水平居中显示，leftPosition:', leftPosition);
+            playerInner.style.right = 'auto'; // 确保right属性不会影响居中
+            playerInner.style.top = '35px';
+            
+            // 小屏幕下数字人居中放置
+            digitalHumanPosition = null;
         } else {
-            // 横版图片，根据数字人位置和播放框宽度决定位置
-            if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
-                // 如果播放框足够小，则居中显示
+            // 大屏幕下，始终使用左/右下角放置数字人
+            let digitalHumanOnLeft = false;
+            
+            // 根据位置模式设置数字人位置
+            switch(window.digitalHumanPositionMode) {
+                case 1: // 始终左下角
+                    digitalHumanOnLeft = true;
+                    console.log('数字人固定放置在左下角');
+                    break;
+                case 2: // 始终右下角
+                    digitalHumanOnLeft = false;
+                    console.log('数字人固定放置在右下角');
+                    break;
+                case 3: // 左右交替
+                    // 与上次位置相反
+                    digitalHumanOnLeft = !lastPositionWasLeft;
+                    console.log(`数字人交替放置在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                    // 更新位置记录
+                    lastPositionWasLeft = digitalHumanOnLeft;
+                    break;
+                case 0: // 随机位置
+                default:
+                    digitalHumanOnLeft = Math.random() > 0.5;
+                    console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                    break;
+            }
+            
+            // 保存数字人位置，大屏幕下总是使用左/右
+            digitalHumanPosition = digitalHumanOnLeft;
+            
+            // 对于竖版图片(高>宽)，始终让播放框水平居中显示
+            if (aspectRatio < 1) {
+                // 竖版图片，播放框居中显示
                 const leftPosition = (windowWidth - playerWidth) / 2;
                 playerInner.style.left = `${leftPosition}px`;
                 playerInner.style.right = 'auto';
+                console.log('竖版媒体：播放框水平居中显示，leftPosition:', leftPosition);
             } else {
-                // 如果播放框较大，则根据数字人位置放在另一侧
-                if (digitalHumanOnLeft) {
-                    // 数字人在左侧，播放框在右侧居中
-                    const rightAreaWidth = windowWidth - window.digitalHumanWidth;
-                    const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+                // 横版图片，根据数字人位置和播放框宽度决定位置
+                if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
+                    // 如果播放框足够小，则居中显示
+                    const leftPosition = (windowWidth - playerWidth) / 2;
                     playerInner.style.left = `${leftPosition}px`;
                     playerInner.style.right = 'auto';
                 } else {
-                    // 数字人在右侧，播放框在左侧居中
-                    const leftAreaWidth = windowWidth - window.digitalHumanWidth;
-                    const leftPosition = (leftAreaWidth - playerWidth) / 2;
-                    playerInner.style.left = `${leftPosition}px`;
-                    playerInner.style.right = 'auto';
+                    // 如果播放框较大，则根据数字人位置放在另一侧
+                    if (digitalHumanOnLeft) {
+                        // 数字人在左侧，播放框在右侧居中
+                        const rightAreaWidth = windowWidth - window.digitalHumanWidth;
+                        const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+                        playerInner.style.left = `${leftPosition}px`;
+                        playerInner.style.right = 'auto';
+                    } else {
+                        // 数字人在右侧，播放框在左侧居中
+                        const leftAreaWidth = windowWidth - window.digitalHumanWidth;
+                        const leftPosition = (leftAreaWidth - playerWidth) / 2;
+                        playerInner.style.left = `${leftPosition}px`;
+                        playerInner.style.right = 'auto';
+                    }
                 }
             }
         }
@@ -1519,7 +1545,7 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         player.classList.add('active');
         
         // 使用moveDigitalHumanForMedia移动数字人到对应位置
-        moveDigitalHumanForMedia(canvas, digitalHumanOnLeft);
+        moveDigitalHumanForMedia(canvas, digitalHumanPosition);
     };
     
     // 图片加载失败处理
@@ -1616,14 +1642,14 @@ window.onload = function() {
             if (isVideo) {
                 // 测试视频
                 if (isOne) {
-                    window.showMediaContentInPlayer('./static/videos/tcq.mp4', 'video');
+                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'video');
                 } else {
                     window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
                 }
             } else {
                 // 测试图片
                 if (isOne) {
-                    window.showMediaContentInPlayer('./static/images/test/kuanys.png', 'image', 5);
+                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'image', 5);
                 } else {
                     window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'image', 5);
                 }
@@ -2189,7 +2215,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
 /**
  * 移动数字人到媒体播放框的相对位置
  * @param {HTMLElement} canvas - 数字人画布元素
- * @param {boolean} digitalHumanOnLeft - 数字人是否放在左侧
+ * @param {boolean|null} digitalHumanOnLeft - 数字人是否放在左侧，null表示小屏幕模式
  */
 function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     // 获取media容器
@@ -2202,6 +2228,10 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     const mediaDivRect = mediaDiv.getBoundingClientRect();
     const canvasWidth = canvas.offsetWidth;
     const canvasHeight = canvas.offsetHeight;
+    const windowWidth = window.innerWidth;
+    
+    // 判断是否为小屏幕设备
+    const isSmallScreen = windowWidth < 800;
     
     // 首先保存原始样式，方便还原
     if (!canvas.originalStyle) {
@@ -2216,28 +2246,51 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
         };
     }
     
-    // 使用全局变量控制数字人宽度并保持原始宽高比
-    const aspectRatio = canvasWidth / canvasHeight;
-    const fixedHeight = window.digitalHumanWidth / aspectRatio;
+    // 使用哪个宽度取决于是否是小屏幕
+    let targetWidth;
+    if (isSmallScreen) {
+        // 小屏幕：数字人宽度为屏幕宽度的2/3
+        targetWidth = windowWidth * (2/3);
+    } else {
+        // 大屏幕：使用全局变量控制数字人宽度
+        targetWidth = window.useFixedDigitalHumanWidth ? window.digitalHumanWidth : windowWidth / 5;
+    }
     
-    // 根据位置计算具体坐标
+    // 保持原始宽高比
+    const aspectRatio = canvasWidth / canvasHeight;
+    const targetHeight = targetWidth / aspectRatio;
+    
+    // 根据屏幕大小和位置计算具体坐标
     let left, top;
     
-    if (digitalHumanOnLeft) {
-        // 数字人在左下角
-        left = 0;
-        top = mediaDivRect.height - fixedHeight;
+    if (isSmallScreen) {
+        // 小屏幕：数字人底部居中
+        left = (windowWidth - targetWidth) / 2;
+        top = mediaDivRect.height - targetHeight;
+        console.log(`小屏幕定位：底部居中，宽度为屏幕的2/3 (${targetWidth}px)`);
+    } else if (digitalHumanOnLeft === null) {
+        // 竖版图片情况下，也将数字人居中
+        left = (windowWidth - targetWidth) / 2;
+        top = mediaDivRect.height - targetHeight;
+        console.log(`竖版图片：数字人底部居中，宽度为${targetWidth}px`);
     } else {
-        // 数字人在右下角
-        left = mediaDivRect.width - window.digitalHumanWidth;
-        top = mediaDivRect.height - fixedHeight;
+        // 大屏幕：左下角或右下角
+        if (digitalHumanOnLeft) {
+            // 数字人在左下角，距离左侧边缘为其宽度的1/5
+            left = targetWidth / 5;
+            top = mediaDivRect.height - targetHeight;
+        } else {
+            // 数字人在右下角，距离右侧边缘为其宽度的1/5
+            left = windowWidth - targetWidth - (targetWidth / 5);
+            top = mediaDivRect.height - targetHeight;
+        }
     }
     
     // 应用样式变化
     canvas.style.position = 'absolute';
     canvas.style.zIndex = '1000';
-    canvas.style.width = `${window.digitalHumanWidth}px`;
-    canvas.style.height = `${fixedHeight}px`;
+    canvas.style.width = `${targetWidth}px`;
+    canvas.style.height = `${targetHeight}px`;
     canvas.style.left = `${left}px`;
     canvas.style.top = `${top}px`;
     canvas.style.transition = 'all 0.5s ease-in-out';

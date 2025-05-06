@@ -2044,7 +2044,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
                         </svg>
-                        尺寸设置
+                        数字人大小设置
                     </div>
                     <div class="form-group">
                         <div style="display: flex; justify-content: space-between;">
@@ -2065,14 +2065,14 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="customWidthSlider">视频宽度</label>
+                        <label for="customWidthSlider">数字人宽度</label>
                         <div class="range-container">
                             <input type="range" id="customWidthSlider" min="100" max="1900" value="500">
                             <input type="number" class="range-value" id="customWidthValue" min="100" max="1900" value="500">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="customHeightSlider">视频高度</label>
+                        <label for="customHeightSlider">数字人高度</label>
                         <div class="range-container">
                             <input type="range" id="customHeightSlider" min="100" max="1900" value="900">
                             <input type="number" class="range-value" id="customHeightValue" min="100" max="1900" value="900">
@@ -2097,6 +2097,18 @@
                             <option value="2">始终右下角</option>
                             <option value="3">左右交替</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="digitalHumanWidthSlider">缩小后数字人宽度</label>
+                        <div class="range-container">
+                            <input type="range" id="digitalHumanWidthSlider" min="35" max="650" value="300">
+                            <input type="number" class="range-value" id="digitalHumanWidthValue" min="35" max="650" value="300">
+                            <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+                                <button id="setCurrentWidthButton" class="btn-secondary" style="padding: 6px 10px; font-size: 12px;">
+                                    使用当前宽度
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="xOffsetSlider">水平位置 (X轴)</label>
@@ -2691,6 +2703,81 @@
                         console.log(`数字人位置模式已设置为: ${window.digitalHumanPositionMode}`);
                     } catch (e) {
                         console.error('保存数字人位置模式设置失败:', e);
+                    }
+                });
+            }
+            
+            // 数字人缩小宽度控制
+            const digitalHumanWidthSlider = document.getElementById('digitalHumanWidthSlider');
+            const digitalHumanWidthValue = document.getElementById('digitalHumanWidthValue');
+            const setCurrentWidthButton = document.getElementById('setCurrentWidthButton');
+            
+            // 初始化数字人宽度控制器
+            if (digitalHumanWidthSlider && digitalHumanWidthValue) {
+                // 从localStorage加载保存的宽度
+                const savedWidth = localStorage.getItem('digitalHumanWidth');
+                if (savedWidth) {
+                    const width = parseInt(savedWidth);
+                    window.digitalHumanWidth = width;
+                    digitalHumanWidthSlider.value = width;
+                    digitalHumanWidthValue.value = width;
+                    console.log('从localStorage加载数字人宽度:', width);
+                } else {
+                    // 使用默认值
+                    digitalHumanWidthSlider.value = window.digitalHumanWidth;
+                    digitalHumanWidthValue.value = window.digitalHumanWidth;
+                }
+                
+                // 监听滑动条变化
+                digitalHumanWidthSlider.addEventListener('input', function() {
+                    const width = parseInt(this.value);
+                    digitalHumanWidthValue.value = width;
+                    window.digitalHumanWidth = width;
+                    localStorage.setItem('digitalHumanWidth', width);
+                    console.log('数字人宽度已设置为:', width);
+                });
+                
+                // 监听输入框变化
+                digitalHumanWidthValue.addEventListener('change', function() {
+                    let width = parseInt(this.value);
+                    
+                    // 限制在有效范围内
+                    if (width < 35) width = 35;
+                    if (width > 650) width = 650;
+                    
+                    this.value = width;
+                    digitalHumanWidthSlider.value = width;
+                    window.digitalHumanWidth = width;
+                    localStorage.setItem('digitalHumanWidth', width);
+                    console.log('数字人宽度已设置为:', width);
+                });
+            }
+            
+            // 应用当前宽度按钮
+            if (setCurrentWidthButton) {
+                setCurrentWidthButton.addEventListener('click', function() {
+                    const canvas = document.getElementById('canvas');
+                    if (canvas) {
+                        // 获取当前canvas的实际宽度
+                        const currentWidth = canvas.offsetWidth;
+                        
+                        // 限制在有效范围内
+                        let width = currentWidth;
+                        if (width < 35) width = 35;
+                        if (width > 650) width = 650;
+                        
+                        // 更新UI和全局变量
+                        digitalHumanWidthSlider.value = width;
+                        digitalHumanWidthValue.value = width;
+                        window.digitalHumanWidth = width;
+                        localStorage.setItem('digitalHumanWidth', width);
+                        
+                        console.log('已应用当前数字人宽度:', width);
+                        
+                        // 显示成功提示
+                        if (typeof showToast === 'function') {
+                            showToast('已应用当前数字人宽度', 'success');
+                        }
                     }
                 });
             }
@@ -5391,9 +5478,19 @@
             });
             // 页面全局点击/触摸也重置
             document.addEventListener('click', ()=>{
-                autoHideElements.forEach(el=>resetAutoHideTimer(el));
+                // 检查是否在播放媒体
+                // const player = document.getElementById('tech-media-player');
+                // if (player && player.classList.contains('active')) {
+                //     return; // 如果正在播放媒体，不重置UI显示
+                // }
+                // autoHideElements.forEach(el=>resetAutoHideTimer(el));
             });
             document.addEventListener('touchstart', ()=>{
+                检查是否在播放媒体
+                const player = document.getElementById('tech-media-player');
+                if (player && player.classList.contains('active')) {
+                    return; // 如果正在播放媒体，不重置UI显示
+                }
                 autoHideElements.forEach(el=>resetAutoHideTimer(el));
             });
             // ========== canvas-status特殊逻辑 ========== //
@@ -5718,11 +5815,21 @@
             
             // 在页面上任何点击都重置透明度
             document.addEventListener('click', function() {
+                // 检查是否在播放媒体
+                const player = document.getElementById('tech-media-player');
+                if (player && player.classList.contains('active')) {
+                    return; // 如果正在播放媒体，不重置透明度
+                }
                 resetOpacity();
             });
             
             // 在页面上任何触摸都重置透明度
             document.addEventListener('touchstart', function() {
+                // 检查是否在播放媒体
+                const player = document.getElementById('tech-media-player');
+                if (player && player.classList.contains('active')) {
+                    return; // 如果正在播放媒体，不重置透明度
+                }
                 resetOpacity();
             });
         });

@@ -4,7 +4,7 @@ var ctx = canvas.getContext('2d');
 var videoElement;
 
 // 数字人缩小后的宽度（单位：像素）
-window.digitalHumanWidth = 100;
+window.digitalHumanWidth = 300;
 
 // 数字人位置模式：0=随机位置，1=始终左下角，2=始终右下角，3=左右交替
 window.digitalHumanPositionMode = 3;
@@ -1333,6 +1333,26 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     const content = player.querySelector('.tech-media-content');
     const playerInner = player.querySelector('.tech-media-player-inner');
     
+    // 获取设置和对话模态框
+    const settingsModal = document.getElementById('settings-modal');
+    const chatModal = document.getElementById('chat-modal');
+    
+    // 隐藏UI元素
+    const autoHideElements = [
+        document.getElementById('show-chat-modal'),
+        document.getElementById('settings-button'),
+        document.getElementById('voice-recognition-button')
+    ];
+    const canvasStatus = document.getElementById('canvas-status');
+    
+    // 隐藏所有UI元素
+    autoHideElements.forEach(el => { if(el) el.style.opacity = 0; });
+    if(canvasStatus) canvasStatus.style.opacity = 0;
+    
+    // 关闭模态框
+    if(settingsModal) settingsModal.style.display = 'none';
+    if(chatModal) chatModal.style.display = 'none';
+    
     // 清空现有内容
     content.innerHTML = '';
     
@@ -1383,14 +1403,48 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
             playerWidth = windowWidth * 0.6;
             playerHeight = playerWidth / aspectRatio;
         } else { // 高大于宽
-            // 高度占屏幕的80%，宽度根据比例确定
+            // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
             playerHeight = windowHeight * 0.8;
-            playerWidth = playerHeight * aspectRatio;
+            
+            // 计算16:9比例的播放框宽度
+            const playerAspectRatio = 16/9;
+            playerWidth = playerHeight * (9/16);
+            
+            // 如果播放框宽度超过窗口宽度的80%，则缩小高度
+            if (playerWidth > windowWidth * 0.8) {
+                playerWidth = windowWidth * 0.8;
+                playerHeight = playerWidth * (16/9);
+            }
+            
+            console.log(`竖版媒体：使用16:9播放框 ${playerWidth}x${playerHeight}`);
         }
         
         // 设置播放框尺寸
         playerInner.style.width = `${playerWidth}px`;
         playerInner.style.height = `${playerHeight}px`;
+        
+        // 设置媒体元素在播放框中居中并保持原始比例
+        if (aspectRatio < 1) {
+            // 计算图片实际显示尺寸，在播放框内保持原始比例
+            let imgWidth, imgHeight;
+            if (mediaHeight > playerHeight) {
+                // 图片高度受限
+                imgHeight = playerHeight;
+                imgWidth = imgHeight * aspectRatio;
+            } else {
+                // 使用原始尺寸
+                imgWidth = mediaWidth;
+                imgHeight = mediaHeight;
+            }
+            
+            // 设置图片样式以在播放框中居中
+            mediaElement.style.display = 'block';
+            mediaElement.style.margin = '0 auto';
+            mediaElement.style.height = `${imgHeight}px`;
+            mediaElement.style.width = `${imgWidth}px`;
+            
+            console.log(`竖版图片实际显示尺寸: ${imgWidth}x${imgHeight}`);
+        }
         
         // 根据数字人位置模式决定数字人位置
         let digitalHumanOnLeft = false;
@@ -1429,26 +1483,35 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         // 设置播放框位置
         playerInner.style.position = 'absolute';
         
-        // 根据数字人位置和播放框宽度决定播放框位置
-        if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
-            // 如果播放框足够小，则居中显示
+        // 对于竖版图片(高>宽)，始终让播放框水平居中显示
+        if (aspectRatio < 1) {
+            // 竖版图片，始终居中显示
             const leftPosition = (windowWidth - playerWidth) / 2;
             playerInner.style.left = `${leftPosition}px`;
             playerInner.style.right = 'auto';
+            console.log('竖版媒体：水平居中显示，leftPosition:', leftPosition);
         } else {
-            // 如果播放框较大，则根据数字人位置放在另一侧
-            if (digitalHumanOnLeft) {
-                // 数字人在左侧，播放框在右侧居中
-                const rightAreaWidth = windowWidth - window.digitalHumanWidth;
-                const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+            // 横版图片，根据数字人位置和播放框宽度决定位置
+            if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
+                // 如果播放框足够小，则居中显示
+                const leftPosition = (windowWidth - playerWidth) / 2;
                 playerInner.style.left = `${leftPosition}px`;
                 playerInner.style.right = 'auto';
             } else {
-                // 数字人在右侧，播放框在左侧居中
-                const leftAreaWidth = windowWidth - window.digitalHumanWidth;
-                const leftPosition = (leftAreaWidth - playerWidth) / 2;
-                playerInner.style.left = `${leftPosition}px`;
-                playerInner.style.right = 'auto';
+                // 如果播放框较大，则根据数字人位置放在另一侧
+                if (digitalHumanOnLeft) {
+                    // 数字人在左侧，播放框在右侧居中
+                    const rightAreaWidth = windowWidth - window.digitalHumanWidth;
+                    const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+                    playerInner.style.left = `${leftPosition}px`;
+                    playerInner.style.right = 'auto';
+                } else {
+                    // 数字人在右侧，播放框在左侧居中
+                    const leftAreaWidth = windowWidth - window.digitalHumanWidth;
+                    const leftPosition = (leftAreaWidth - playerWidth) / 2;
+                    playerInner.style.left = `${leftPosition}px`;
+                    playerInner.style.right = 'auto';
+                }
             }
         }
         
@@ -1560,9 +1623,9 @@ window.onload = function() {
             } else {
                 // 测试图片
                 if (isOne) {
-                    window.showMediaContentInPlayer('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 5);
+                    window.showMediaContentInPlayer('./static/images/test/kuanys.png', 'image', 5);
                 } else {
-                    window.showMediaContentInPlayer('./static/images/sz-bg1.png', 'image', 5);
+                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'image', 5);
                 }
             }
         });

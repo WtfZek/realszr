@@ -734,13 +734,47 @@
         #chat-modal .modal-scroll-container {
             padding: 20px; /* 这里设置你想要的 padding 值 */
             /* opacity: 0.65; */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* 增加iOS滚动惯性 */
+            overscroll-behavior: contain; /* 防止滚动穿透 */
         }
-
-        #chat-modal .modal-scroll-container .div {
-            white-space: nowrap;
-            overflow: visible;
-            word-break: break-all;
-            overflow-wrap: break-word;
+        
+        /* 手机端对话框底部居中样式 */
+        @media (max-width: 768px) {
+            #chat-modal {
+                left: 0 !important;
+                right: 0 !important;
+                top: auto !important;
+                bottom: 120px !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: 160px !important;
+                max-height: 20vh !important;
+                border-radius: 16px 16px 0 0 !important;
+            }
+            
+            #chat-modal .modal-scroll-container {
+                /* 为移动设备添加特殊样式 */
+                height: 100%;
+                overflow-y: scroll; /* 强制显示滚动 */
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-y; /* 允许Y轴滚动 */
+                scrollbar-width: thin;
+            }
+            
+            /* 滚动提示 */
+            #chat-modal::after {
+                content: "";
+                position: absolute;
+                bottom: 5px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 40px;
+                height: 4px;
+                background-color: rgba(255, 255, 255, 0.5);
+                border-radius: 2px;
+                z-index: 1010;
+            }
         }
 
         #show-chat-modal {
@@ -774,6 +808,7 @@
             align-items: center;
             transition: var(--transition);
             border: none;
+            z-index: 1002; /* 设置在数字人canvas(1000)之上，但在科技感媒体播放器(1005)之下 */
             /* display: none; */
         }
         
@@ -793,6 +828,7 @@
             align-items: center;
             justify-content: center;
             transition: var(--transition);
+            z-index: 1002; /* 设置在数字人canvas(1000)之上，但在科技感媒体播放器(1005)之下 */
         }
         
         #test-media-player-btn:hover {
@@ -1873,6 +1909,14 @@
                                     height: 100%;
                                     object-fit: cover;
                                 }
+                                .bg-preset-item video {
+                                    position: absolute;
+                                    top: 0;
+                                    left: 0;
+                                    width: 100%;
+                                    height: 100%;
+                                    object-fit: cover;
+                                }
                             </style>
                             
                             <!-- 第一行图片 -->
@@ -1912,6 +1956,16 @@
                                 </div>
                                 <div class="bg-preset-item" data-bg-url="static\images/sz-bg8.png">
                                     <img src="static\images/sz-bg8.png" alt="未来科技竖屏4">
+                                </div>
+                            </div>
+
+                            <!-- 第五行动态 -->
+                            <div class="bg-presets-row">
+                                <div class="bg-preset-item" data-bg-url="static\videos/outup.mp4">
+                                    <video src="static\videos/outup.mp4" alt="未来科技竖屏3">
+                                </div>
+                                <div class="bg-preset-item" data-bg-url="static\videos/outup.mp4">
+                                    <video src="static\videos/outup.mp4" alt="未来科技竖屏4">
                                 </div>
                             </div>
                         </div>
@@ -5679,6 +5733,121 @@
                     });
                 }
             })();
+
+            // 触摸拖动事件
+            chatModal.addEventListener('touchstart', (e) => {
+                // 如果点击的是关闭按钮或控制元素，不触发拖动
+                if (e.target.closest('.close-button') || 
+                    e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'BUTTON' ||
+                    e.target.closest('.form-group')) return;
+                
+                // 获取聊天内容容器
+                const chatContent = document.getElementById('chat-content');
+                
+                // 如果触摸开始在聊天内容区域，则判断为滚动操作而非拖动操作
+                if (e.target === chatContent || chatContent.contains(e.target)) {
+                    // 允许默认的触摸行为（滚动）
+                    return;
+                }
+                
+                if (e.touches.length === 1) {
+                    // 阻止默认行为，防止滚动
+                    e.preventDefault();
+                    
+                    isChatModalDragging = true;
+                    const touch = e.touches[0];
+                    
+                    // 获取当前位置
+                    const rect = chatModal.getBoundingClientRect();
+                    
+                    // 计算触摸点相对于模态框的偏移
+                    chatModalOffsetX = touch.clientX - rect.left;
+                    chatModalOffsetY = touch.clientY - rect.top;
+                    
+                    // 保存原始样式，用于在拖动后恢复
+                    chatModal.dataset.originalTransform = chatModal.style.transform || '';
+                    chatModal.dataset.originalLeft = chatModal.style.left || '';
+                    chatModal.dataset.originalTop = chatModal.style.top || '';
+                    chatModal.dataset.originalRight = chatModal.style.right || '';
+                    chatModal.dataset.originalBottom = chatModal.style.bottom || '';
+                    
+                    // 确保在拖动前清除transform，防止影响拖动
+                    chatModal.style.transform = 'none';
+                    
+                    // 设置为绝对定位，确保可以通过left/top移动
+                    chatModal.style.position = 'absolute';
+                    chatModal.style.bottom = 'auto';
+                    chatModal.style.right = 'auto';
+                    chatModal.style.left = rect.left + 'px';
+                    chatModal.style.top = rect.top + 'px';
+                    
+                    // 增加视觉反馈
+                    chatModal.style.userSelect = 'none';
+                }
+            });
+            
+            // 为聊天内容区域添加触摸滚动支持
+            const enhanceTouchScrolling = () => {
+                const chatContent = document.getElementById('chat-content');
+                if (!chatContent) return;
+                
+                // 初始触摸位置
+                let touchStartY = 0;
+                // 当前滚动位置
+                let scrollTop = 0;
+                // 是否正在滚动
+                let isScrolling = false;
+                
+                chatContent.addEventListener('touchstart', (e) => {
+                    if (isChatModalDragging) return; // 如果正在拖动模态框，不处理滚动
+                    
+                    // 记录初始触摸位置
+                    touchStartY = e.touches[0].clientY;
+                    // 记录当前滚动位置
+                    scrollTop = chatContent.scrollTop;
+                    // 标记正在滚动
+                    isScrolling = true;
+                    
+                    // 允许继续传播事件，但不阻止默认行为（原生滚动）
+                }, { passive: true });
+                
+                chatContent.addEventListener('touchmove', (e) => {
+                    if (!isScrolling || isChatModalDragging) return;
+                    
+                    // 计算触摸移动距离
+                    const touchDeltaY = touchStartY - e.touches[0].clientY;
+                    
+                    // 设置新的滚动位置
+                    chatContent.scrollTop = scrollTop + touchDeltaY;
+                    
+                    // 如果滚动到了顶部或底部，允许页面继续滚动
+                    const isAtTop = chatContent.scrollTop === 0;
+                    const isAtBottom = chatContent.scrollHeight - chatContent.scrollTop === chatContent.clientHeight;
+                    
+                    if ((isAtTop && touchDeltaY < 0) || (isAtBottom && touchDeltaY > 0)) {
+                        // 允许页面滚动
+                    } else {
+                        // 阻止页面滚动
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+                chatContent.addEventListener('touchend', () => {
+                    isScrolling = false;
+                }, { passive: true });
+                
+                chatContent.addEventListener('touchcancel', () => {
+                    isScrolling = false;
+                }, { passive: true });
+                
+                // 添加CSS使其在iOS上滚动更流畅
+                chatContent.style.webkitOverflowScrolling = 'touch';
+                chatContent.style.overflowY = 'auto';
+                console.log('已启用聊天内容区域的触摸滚动增强');
+            };
+            
+            // 初始化触摸滚动支持
+            enhanceTouchScrolling();
         });
     </script>
     

@@ -4,7 +4,7 @@ var ctx = canvas.getContext('2d');
 var videoElement;
 
 // 数字人缩小后的宽度（单位：像素）
-window.digitalHumanWidth = 300;
+window.digitalHumanWidth = 440;
 
 // 数字人位置模式：0=随机位置，1=始终左下角，2=始终右下角，3=左右交替
 window.digitalHumanPositionMode = 3;
@@ -57,6 +57,9 @@ let asrSessionId = null;
 // 添加全局变量，用于跟踪对话状态
 window.lastUserMessageTimestamp = 0; // 上次用户发送消息的时间戳
 window.currentStreamingId = null; // 当前正在处理的流式消息ID
+
+// 添加window.useFixedDigitalHumanWidth标志，默认为true
+window.useFixedDigitalHumanWidth = true;
 
 // Function to establish WebSocket connection
 function connectWebSocket(sessionid) {
@@ -1029,7 +1032,7 @@ function addChatMedia(mediaSource, mediaType, position, type) {
 
     // 创建头像图片元素
     const avatar = document.createElement('img');
-    avatar.src = './static/images/media.png';
+    avatar.src = './static/images/icons/media.png';
     avatar.style.width = '24px';
     avatar.style.height = '24px';
     avatar.style.borderRadius = '50%';
@@ -1402,13 +1405,20 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         
         // 根据媒体比例设置播放框尺寸
         let playerWidth, playerHeight;
-        if (aspectRatio > 1) { // 宽大于高
+        if (aspectRatio >= 1) { // 宽大于或等于高（横版，包括正方形）
             // 宽度占屏幕的3/5，高度根据比例确定
             playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.6);
             playerHeight = playerWidth / aspectRatio;
-        } else { // 高大于宽
+            
+            // 检查高度是否超过屏幕高度（针对宽高比接近1:1的媒体）
+            if (!isSmallScreen && aspectRatio <= 1.3 && playerHeight > windowHeight * 0.9) {
+                console.log(`宽高比接近1:1的媒体(${aspectRatio})，高度(${playerHeight})超过屏幕90%，重新计算尺寸`);
+                playerHeight = windowHeight * 0.9; // 设置为屏幕高度的90%
+                playerWidth = playerHeight * aspectRatio; // 按原始比例重新计算宽度
+            }
+        } else { // 高大于宽（竖版）
             // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
-            playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.8);
+            playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.9);
             
             // 计算16:9比例的播放框宽度
             const playerAspectRatio = 16/9;
@@ -1613,8 +1623,36 @@ window.onload = function() {
     const testChatMediaButton = document.getElementById('test-chat-media');
     if (testChatMediaButton) {
         console.log('找到测试按钮，添加点击事件');
-        testChatMediaButton.addEventListener('click', function() {
+        
+        // 添加点击事件
+        testChatMediaButton.addEventListener('click', function(e) {
+            e.preventDefault();
             console.log('点击了测试按钮');
+            // 确保聊天对话框已打开
+            const chatModal = document.getElementById('chat-modal');
+            if (chatModal && window.getComputedStyle(chatModal).display === 'none') {
+                const showChatModalButton = document.getElementById('show-chat-modal');
+                if (showChatModalButton) {
+                    showChatModalButton.click();
+                }
+            }
+            
+            // 测试添加媒体消息
+            testChatMedia();
+        });
+        
+        // 为移动设备添加触摸事件
+        testChatMediaButton.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // 阻止默认行为
+            console.log('触摸了测试按钮');
+            testChatMediaButton.classList.add('active');
+        });
+        
+        testChatMediaButton.addEventListener('touchend', function(e) {
+            e.preventDefault(); // 阻止默认行为
+            console.log('触摸结束测试按钮');
+            testChatMediaButton.classList.remove('active');
+            
             // 确保聊天对话框已打开
             const chatModal = document.getElementById('chat-modal');
             if (chatModal && window.getComputedStyle(chatModal).display === 'none') {
@@ -1632,28 +1670,25 @@ window.onload = function() {
     // 为测试媒体播放框按钮添加事件监听器
     const testMediaPlayerBtn = document.getElementById('test-media-player-btn');
     if (testMediaPlayerBtn) {
-        testMediaPlayerBtn.addEventListener('click', function() {
+        // 添加点击事件
+        testMediaPlayerBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             console.log('点击了测试媒体播放框按钮');
-            
-            // 随机选择图片或视频进行测试
-            const isVideo = Math.random() > 0.5;
-            const isOne = Math.random() > 0.5;
-            
-            if (isVideo) {
-                // 测试视频
-                if (isOne) {
-                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'video');
-                } else {
-                    window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
-                }
-            } else {
-                // 测试图片
-                if (isOne) {
-                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'image', 5);
-                } else {
-                    window.showMediaContentInPlayer('./static/images/test/gaoys.png', 'image', 5);
-                }
-            }
+            testMediaPlayer(); // 调用封装后的函数
+        });
+        
+        // 为移动设备添加触摸事件
+        testMediaPlayerBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // 阻止默认行为
+            console.log('触摸了测试媒体按钮');
+            testMediaPlayerBtn.classList.add('active');
+        });
+        
+        testMediaPlayerBtn.addEventListener('touchend', function(e) {
+            e.preventDefault(); // 阻止默认行为
+            console.log('触摸结束测试媒体按钮');
+            testMediaPlayerBtn.classList.remove('active');
+            testMediaPlayer(); // 调用封装后的函数
         });
     }
     
@@ -2064,7 +2099,7 @@ async function getConfigOptions() {
 }
 
 function connectToOCServer() {
-    const wsUrl = `${window.wsProtocol}://192.168.3.188:8000/ws/client`;
+    const wsUrl = `${window.wsProtocol}://${window.ocHost}/ws/client`;
     // const wsUrl = `${window.wsProtocol}://${window.host}/ws/client`;
 
     console.log('有问题的ws链接:', wsUrl);
@@ -2251,9 +2286,11 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     if (isSmallScreen) {
         // 小屏幕：数字人宽度为屏幕宽度的2/3
         targetWidth = windowWidth * (2/3);
+        console.log(`小屏幕：数字人宽度为屏幕的2/3 (${targetWidth}px)`);
     } else {
-        // 大屏幕：使用全局变量控制数字人宽度
-        targetWidth = window.useFixedDigitalHumanWidth ? window.digitalHumanWidth : windowWidth / 5;
+        // 大屏幕：始终使用window.digitalHumanWidth
+        targetWidth = window.digitalHumanWidth;
+        console.log(`大屏幕：使用固定宽度 ${targetWidth}px (来自digitalHumanWidthSlider设置)`);
     }
     
     // 保持原始宽高比
@@ -2276,13 +2313,15 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     } else {
         // 大屏幕：左下角或右下角
         if (digitalHumanOnLeft) {
-            // 数字人在左下角，距离左侧边缘为其宽度的1/5
-            left = targetWidth / 5;
+            // 数字人在左下角，使用固定边距
+            left = 20; // 固定左边距
             top = mediaDivRect.height - targetHeight;
+            console.log(`数字人放置在左下角，宽度=${targetWidth}px, 边距=20px`);
         } else {
-            // 数字人在右下角，距离右侧边缘为其宽度的1/5
-            left = windowWidth - targetWidth - (targetWidth / 5);
+            // 数字人在右下角，使用固定边距
+            left = windowWidth - targetWidth - 20; // 固定右边距
             top = mediaDivRect.height - targetHeight;
+            console.log(`数字人放置在右下角，宽度=${targetWidth}px, 边距=20px`);
         }
     }
     
@@ -2294,4 +2333,33 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     canvas.style.left = `${left}px`;
     canvas.style.top = `${top}px`;
     canvas.style.transition = 'all 0.5s ease-in-out';
+}
+
+// 添加新函数：测试媒体播放器
+/**
+ * 测试媒体播放器功能
+ * 随机选择图片或视频进行测试显示
+ */
+function testMediaPlayer() {
+    console.log('测试媒体播放器功能');
+    
+    // 随机选择图片或视频进行测试
+    const isVideo = Math.random() > 0.5;
+    const isOne = Math.random() > 0.5;
+    
+    if (isVideo) {
+        // 测试视频
+        if (isOne) {
+            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+        } else {
+            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+        }
+    } else {
+        // 测试图片
+        if (isOne) {
+            window.showMediaContentInPlayer('./static/images/test/wttpssr.png', 'image', 5);
+        } else {
+            window.showMediaContentInPlayer('./static/images/test/wttp.png', 'image', 5);
+        }
+    }
 }

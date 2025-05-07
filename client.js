@@ -1316,15 +1316,34 @@ function testChatMedia() {
 
 // 添加全局计时器变量
 let techPlayerAutoCloseTimer = null;
+// 添加轮播相关全局变量
+let mediaCarouselList = [];
+let mediaCarouselIndex = 0;
+let isCarouselPlaying = false;
 
 /**
  * 在科技感播放框中显示媒体内容
- * @param {string} url - 媒体URL
+ * @param {string|Array} url - 媒体URL或URL数组(轮播模式)
  * @param {string} type - 媒体类型，'image' 或 'video'
- * @param {number} displayTime - 图片显示时间（秒），默认5秒
+ * @param {number} displayTime - 图片显示时间（秒），默认5秒，轮播模式为切换间隔
  * @param {boolean} alignLeft - 是否左对齐播放框，默认根据上一次位置交替
  */
 function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
+    // 检查是否是轮播模式（传入数组）
+    const isCarousel = Array.isArray(url);
+    
+    // 如果是轮播模式且这是第一次调用
+    if (isCarousel && !isCarouselPlaying) {
+        console.log('开始轮播播放，共' + url.length + '个媒体项');
+        mediaCarouselList = [...url]; // 复制数组
+        mediaCarouselIndex = 0;
+        isCarouselPlaying = true;
+        
+        // 开始播放第一个媒体
+        showMediaInTechPlayer(mediaCarouselList[0], type, displayTime, alignLeft);
+        return;
+    }
+    
     // 先清除可能存在的自动关闭计时器
     if (techPlayerAutoCloseTimer) {
         clearTimeout(techPlayerAutoCloseTimer);
@@ -1378,8 +1397,13 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         mediaElement.controls = true;
         // 添加视频播放结束事件监听器
         mediaElement.addEventListener('ended', function() {
-            console.log('视频播放结束，自动关闭播放器');
-            closeTechMediaPlayer();
+            if (isCarouselPlaying) {
+                console.log('视频播放结束，准备切换到下一个媒体');
+                playNextMedia(type, displayTime, alignLeft);
+            } else {
+                console.log('视频播放结束，自动关闭播放器');
+                closeTechMediaPlayer();
+            }
         });
     } else {
         console.error('不支持的媒体类型:', type);
@@ -1561,16 +1585,55 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     // 图片加载失败处理
     mediaElement.onerror = function() {
         console.error('媒体加载失败:', url);
-        closeTechMediaPlayer();
+        if (isCarouselPlaying) {
+            // 加载失败时尝试加载下一个媒体
+            console.log('媒体加载失败，尝试加载下一个');
+            playNextMedia(type, displayTime, alignLeft);
+        } else {
+            closeTechMediaPlayer();
+        }
     };
     
-    // 如果是图片，设置自动关闭定时器
+    // 如果是图片，设置自动关闭或轮播定时器
     if (type === 'image' && displayTime > 0) {
         techPlayerAutoCloseTimer = setTimeout(function() {
-            console.log(`图片显示${displayTime}秒后自动关闭`);
-            closeTechMediaPlayer();
+            if (isCarouselPlaying) {
+                console.log(`图片显示${displayTime}秒后，切换到下一个媒体`);
+                playNextMedia(type, displayTime, alignLeft);
+            } else {
+                console.log(`图片显示${displayTime}秒后自动关闭`);
+                closeTechMediaPlayer();
+            }
         }, displayTime * 1000);
     }
+}
+
+/**
+ * 播放轮播中的下一个媒体
+ * @param {string} type - 媒体类型
+ * @param {number} displayTime - 显示时间（秒）
+ * @param {boolean} alignLeft - 对齐方式
+ */
+function playNextMedia(type, displayTime, alignLeft) {
+    if (!isCarouselPlaying || mediaCarouselList.length === 0) {
+        closeTechMediaPlayer();
+        return;
+    }
+    
+    // 更新到下一个索引
+    mediaCarouselIndex++;
+    
+    // 检查是否已播放完所有媒体
+    if (mediaCarouselIndex >= mediaCarouselList.length) {
+        console.log('轮播已完成所有媒体项，执行关闭操作');
+        closeTechMediaPlayer();
+        return;
+    }
+    
+    console.log(`播放轮播的第 ${mediaCarouselIndex + 1}/${mediaCarouselList.length} 个媒体`);
+    
+    // 播放下一个媒体
+    showMediaInTechPlayer(mediaCarouselList[mediaCarouselIndex], type, displayTime, alignLeft);
 }
 
 /**
@@ -1583,6 +1646,11 @@ function closeTechMediaPlayer() {
         techPlayerAutoCloseTimer = null;
     }
     
+    // 重置轮播状态
+    isCarouselPlaying = false;
+    mediaCarouselList = [];
+    mediaCarouselIndex = 0;
+
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');
     
@@ -2223,14 +2291,20 @@ function disconnectFromServer() {
 
 /**
  * 对外暴露的方法，用于在科技感播放框中显示图片或视频
- * @param {string} url - 媒体URL
+ * @param {string|Array} url - 媒体URL或URL数组（用于轮播）
  * @param {string} type - 媒体类型('image'或'video')
- * @param {number} displayTime - 图片显示时间(秒)，默认5秒，仅对图片有效
+ * @param {number} displayTime - 图片显示时间(秒)，默认5秒，轮播模式下为切换间隔
  * @param {boolean} alignLeft - 是否左对齐播放框，不指定则交替
  */
 window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5, alignLeft) {
     if (!url) {
         console.error('URL不能为空');
+        return;
+    }
+    
+    // 检查数组情况
+    if (Array.isArray(url) && url.length === 0) {
+        console.error('媒体URL数组不能为空');
         return;
     }
     
@@ -2243,9 +2317,66 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
     // 确保displayTime为有效数字
     displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
     
-    // 播放媒体
+    // 播放媒体（单个或轮播）
     showMediaInTechPlayer(url, type, displayTime, alignLeft);
 };
+
+// 添加新函数：测试媒体播放器
+/**
+ * 测试媒体播放器功能
+ * 随机选择图片或视频进行测试显示，支持轮播模式
+ */
+function testMediaPlayer() {
+    console.log('测试媒体播放器功能');
+    
+    // 随机决定是测试单个媒体还是轮播功能
+    const testCarousel = Math.random() > 0.3; // 70%概率测试轮播
+    
+    if (testCarousel) {
+        console.log('测试媒体轮播功能');
+        const isVideoCarousel = Math.random() > 0.5;
+        
+        if (isVideoCarousel) {
+            // 视频轮播测试（实际环境中应该有多个不同视频）
+            const videoUrls = [
+                './static/videos/outup.mp4',
+                './static/videos/outup.mp4'
+            ];
+            window.showMediaContentInPlayer(videoUrls, 'video');
+            console.log('视频轮播测试：播放完一个视频后自动切换到下一个');
+        } else {
+            // 图片轮播测试
+            const imageUrls = [
+                './static/images/test/wttpssr.png',
+                './static/images/test/wttp.png',
+                './static/images/sz-bg1.png',
+                './static/images/sz-bg2.png'
+            ];
+            window.showMediaContentInPlayer(imageUrls, 'image', 2);
+            console.log('图片轮播测试：每3秒自动切换一张图片');
+        }
+    } else {
+        // 测试单个媒体
+        const isVideo = Math.random() > 0.5;
+        const isOne = Math.random() > 0.5;
+        
+        if (isVideo) {
+            // 测试视频
+            if (isOne) {
+                window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+            } else {
+                window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+            }
+        } else {
+            // 测试图片
+            if (isOne) {
+                window.showMediaContentInPlayer('./static/images/test/wttpssr.png', 'image', 5);
+            } else {
+                window.showMediaContentInPlayer('./static/images/test/wttp.png', 'image', 5);
+            }
+        }
+    }
+}
 
 /**
  * 移动数字人到媒体播放框的相对位置
@@ -2333,33 +2464,4 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
     canvas.style.left = `${left}px`;
     canvas.style.top = `${top}px`;
     canvas.style.transition = 'all 0.5s ease-in-out';
-}
-
-// 添加新函数：测试媒体播放器
-/**
- * 测试媒体播放器功能
- * 随机选择图片或视频进行测试显示
- */
-function testMediaPlayer() {
-    console.log('测试媒体播放器功能');
-    
-    // 随机选择图片或视频进行测试
-    const isVideo = Math.random() > 0.5;
-    const isOne = Math.random() > 0.5;
-    
-    if (isVideo) {
-        // 测试视频
-        if (isOne) {
-            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
-        } else {
-            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
-        }
-    } else {
-        // 测试图片
-        if (isOne) {
-            window.showMediaContentInPlayer('./static/images/test/wttpssr.png', 'image', 5);
-        } else {
-            window.showMediaContentInPlayer('./static/images/test/wttp.png', 'image', 5);
-        }
-    }
 }

@@ -86,37 +86,44 @@ function connectWebSocket(sessionid) {
     ws.onmessage = function (event) {
         console.log('接收到 WebSocket 消息');
         if (event.data) {
-            const data = JSON.parse(event.data);
-            console.log('消息内容不为空，具体内容如下:');
-            console.log("event.data", data);
-            if (data.type === 'video') {
-                window.showMediaContentInPlayer(data.url, data.type);
-            } else if (data.type === 'image') {
-                window.showMediaContentInPlayer(data.url, data.type, 99);
-            } else if (data.type === 'text') {
-                try {
-                    // 尝试解析JSON，看是否是特殊控制消息
-                    const jsonData = JSON.parse(event.data);
+            try {
+                const data = JSON.parse(event.data);
+                console.log('消息内容不为空，具体内容如下:');
+                console.log("event.data", data);
+                
+                // 处理媒体类型消息
+                if (data.type === 'video' || data.type === 'image') {
+                    // 使用handleMediaWebSocketMessage处理媒体消息，支持队列
+                    handleMediaWebSocketMessage(data);
+                } else if (data.type === 'text') {
+                    try {
+                        // 尝试解析JSON，看是否是特殊控制消息
+                        const jsonData = JSON.parse(event.data);
 
-                    // 检查是否是新一轮对话的开始
-                    const isNewConversationTurn = shouldCreateNewChatItem();
+                        // 检查是否是新一轮对话的开始
+                        const isNewConversationTurn = shouldCreateNewChatItem();
 
-                    // 如果存在特定标记，表示这不是流式消息
-                    if (jsonData.type === 'system' || jsonData.complete === true) {
-                        // 系统消息或完整消息，不使用流式处理
-                        addChatMessage(jsonData.url || jsonData.text || jsonData.message || event.data, 'left', false, 'szr');
-                        // 非流式消息后，重置当前流ID
-                        window.currentStreamingId = null;
-                    } else {
-                        // 其他JSON消息，作为普通文本显示，使用流式处理
-                        addChatMessage(jsonData.url || jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true, 'szr');
+                        // 如果存在特定标记，表示这不是流式消息
+                        if (jsonData.type === 'system' || jsonData.complete === true) {
+                            // 系统消息或完整消息，不使用流式处理
+                            addChatMessage(jsonData.url || jsonData.text || jsonData.message || event.data, 'left', false, 'szr');
+                            // 非流式消息后，重置当前流ID
+                            window.currentStreamingId = null;
+                        } else {
+                            // 其他JSON消息，作为普通文本显示，使用流式处理
+                            addChatMessage(jsonData.url || jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true, 'szr');
+                        }
+                    } catch (e) {
+                        // 不是JSON，作为普通文本用流式处理
+                        addChatMessage(event.data, 'left', true, 'szr');
                     }
-                } catch (e) {
-                    // 不是JSON，作为普通文本用流式处理
-                    addChatMessage(event.data, 'left', true, 'szr');
+                } else if (data.type === 'cmd') {
+                    if (data.url === 'stop') closeTechMediaPlayer();
                 }
-            } else if (data.type === 'cmd') {
-                if (data.url === 'stop') closeTechMediaPlayer();
+            } catch (e) {
+                console.error('解析WebSocket消息失败:', e);
+                // 尝试作为纯文本处理
+                addChatMessage(event.data, 'left', true, 'szr');
             }
         } else {
             console.log('接收到的消息内容为空');
@@ -147,68 +154,7 @@ function connectWebSocket(sessionid) {
     };
 }
 
-function connectMediaWebSocket(sessionid) {
-    console.log(`开始尝试建立 WebSocket 连接，sessionid: ${sessionid}`);
 
-    // Close existing connection if any
-    if (ws) {
-        console.log('检测到已有 WebSocket 连接，正在关闭旧连接...');
-        ws.close();
-        console.log('旧的 WebSocket 连接已关闭');
-    }
-
-    // Create a new WebSocket connection
-    const wsUrl = `${window.wsProtocol}://${window.host}/ws_ai?sessionid=${sessionid}`;
-    console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = function () {
-        console.log('WebSocket 连接已成功建立');
-        isWebSocketConnected = true;
-        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
-    };
-
-    ws.onmessage = function (event) {
-        console.log('接收到 WebSocket 消息');
-        if (event.data) {
-            const data = JSON.parse(event.data);
-            console.log('消息内容不为空，具体内容如下:');
-            console.log("event.data", data);
-            if (data.type === 'video') {
-                window.showMediaContentInPlayer(data.url, data.type);
-            } else if (data.type === 'image') {
-                window.showMediaContentInPlayer(data.url, data.type, 3);
-            } else {
-                console.log('无效的消息类型');
-            }
-        } else {
-            console.log('接收到的消息内容为空');
-        }
-    };
-
-    ws.onclose = function (event) {
-        console.log('WebSocket 连接已关闭');
-        isWebSocketConnected = false;
-        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
-        console.log(`关闭代码: ${event.code}, 关闭原因: ${event.reason}`);
-
-        // Try to reconnect after 5 seconds
-        console.log('将在 5 秒后尝试重新连接...');
-        setTimeout(function () {
-            if (!isWebSocketConnected) {
-                console.log('仍然处于未连接状态，开始重新连接...');
-                connectMediaWebSocket(sessionid);
-            } else {
-                console.log('在等待期间已重新连接，无需再次尝试');
-            }
-        }, 5000);
-    };
-
-    ws.onerror = function (error) {
-        console.error('WebSocket 发生错误');
-        console.error('错误详情:', error);
-    };
-}
 
 function negotiate() {
     pc.addTransceiver('video', { direction: 'recvonly' });
@@ -257,7 +203,6 @@ function negotiate() {
         console.log(`从服务器获取到sessionId: ${sessionId}，开始建立WebSocket连接`);
         connectWebSocket(sessionId);
 
-        // connectMediaWebSocket(sessionId);
         
         getConfigOptions();
         
@@ -1310,7 +1255,7 @@ echoForm.addEventListener('submit', function(e) {
     });
     
     // 开启检测数字人说话
-    startAudioSilenceDetection();
+    // startAudioSilenceDetection();
 
     // fetch(`${window.protocol}://${window.mediaHost}/human`)
     // .then(response => response.json())
@@ -1398,7 +1343,7 @@ function testChatMedia() {
 // addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', false);
 
 // 添加全局计时器变量
-let techPlayerAutoCloseTimer = null;
+// let techPlayerAutoCloseTimer = null;
 // 添加音频检测计时器变量
 let audioSilenceDetectionTimer = null;
 // 添加静音检测阈值和计数器
@@ -1519,13 +1464,21 @@ function stopAudioSilenceDetection() {
  * @param {string} type - 媒体类型，'image' 或 'video'
  * @param {number} displayTime - 图片显示时间（秒），默认5秒
  * @param {boolean} alignLeft - 是否左对齐播放框，默认根据上一次位置交替
+ * @param {boolean} isLoop - 视频是否循环播放，默认为false
  */
-function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
+function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = false) {
     // 先清除可能存在的自动关闭计时器
     if (techPlayerAutoCloseTimer) {
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
+    
+    // 停止可能存在的音频检测
+    stopAudioSilenceDetection();
+    
+    // 重置视频播放状态跟踪
+    videoPlayedAtLeastOnce = false;
+    isMediaVideoType = type === 'video';
     
     // 获取播放框和内容区域
     const player = document.getElementById('tech-media-player');
@@ -1572,10 +1525,21 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         mediaElement.src = url;
         mediaElement.autoplay = true;
         mediaElement.controls = true;
+        mediaElement.loop = isLoop; // 设置视频循环播放
+        
         // 添加视频播放结束事件监听器
         mediaElement.addEventListener('ended', function() {
-            console.log('视频播放结束，自动关闭播放器');
-            closeTechMediaPlayer();
+            console.log('视频播放结束');
+            
+            // 如果是队列处理模式，继续处理下一个媒体
+            if (isProcessingMediaQueue) {
+                console.log('继续处理队列中的下一个媒体');
+                // 不需要关闭播放器，直接处理下一个媒体
+                processNextMedia();
+            } else if (!isLoop) {
+                console.log('视频不循环播放，自动关闭播放器');
+                closeTechMediaPlayer();
+            }
         });
     } else {
         console.error('不支持的媒体类型:', type);
@@ -1757,13 +1721,20 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     // 图片加载失败处理
     mediaElement.onerror = function() {
         console.error('媒体加载失败:', url);
-        closeTechMediaPlayer();
+        
+        // 如果是队列处理模式，继续处理下一个媒体
+        if (isProcessingMediaQueue) {
+            console.log('媒体加载失败，继续处理队列中的下一个媒体');
+            processNextMedia();
+        } else {
+            closeTechMediaPlayer();
+        }
     };
     
-    // 如果是图片，设置自动关闭定时器
-    if (type === 'image' && displayTime > 0) {
+    // 如果是图片且不在队列处理模式，设置自动关闭定时器
+    if (type === 'image' && displayTime > 0 && !isProcessingMediaQueue) {
         techPlayerAutoCloseTimer = setTimeout(function() {
-            console.log(`图片显示${displayTime}秒后自动关闭`);
+            console.log(`非队列模式：图片显示${displayTime}秒后自动关闭`);
             closeTechMediaPlayer();
         }, displayTime * 1000);
     }
@@ -1780,7 +1751,35 @@ function closeTechMediaPlayer() {
     }
     
     // 停止音频静音检测
-    stopAudioSilenceDetection();
+    if (typeof stopAudioSilenceDetection === 'function') {
+        stopAudioSilenceDetection();
+    }
+    
+    // 重置视频播放状态
+    if (typeof videoPlayedAtLeastOnce !== 'undefined') {
+        videoPlayedAtLeastOnce = false;
+    }
+    if (typeof isMediaVideoType !== 'undefined') {
+        isMediaVideoType = false;
+    }
+    
+    // 如果当前是在处理队列，检查是否有下一个媒体需要处理
+    if (isProcessingMediaQueue) {
+        console.log('从队列中关闭媒体');
+        currentlyPlayingMedia = null;
+        
+        // 检查队列中是否还有媒体
+        if (imageMediaQueue.length > 0 || videoMediaQueue.length > 0) {
+            // 立即处理下一个，不需要真正关闭播放器
+            console.log('队列中还有媒体，处理下一个');
+            setTimeout(processNextMedia, 500); // 稍微延迟以便平滑过渡
+            return; // 不执行后续关闭代码
+        } else {
+            // 队列为空，正常关闭
+            isProcessingMediaQueue = false;
+            console.log('队列已清空，关闭播放器');
+        }
+    }
     
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');
@@ -2422,8 +2421,8 @@ function disconnectFromServer() {
 
 /**
  * 对外暴露的方法，用于在科技感播放框中显示图片或视频
- * @param {string} url - 媒体URL
- * @param {string} type - 媒体类型('image'或'video')
+ * @param {string|Array|Object} url - 媒体URL或URL数组或媒体配置对象数组
+ * @param {string} type - 媒体类型('image'或'video')，当url为数组且包含类型时可省略
  * @param {number} displayTime - 图片显示时间(秒)，默认5秒，仅对图片有效
  * @param {boolean} alignLeft - 是否左对齐播放框，不指定则交替
  */
@@ -2433,17 +2432,103 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         return;
     }
     
-    // 检查媒体类型
-    if (type !== 'image' && type !== 'video') {
-        console.error('不支持的媒体类型:', type);
-        return;
-    }
-    
     // 确保displayTime为有效数字
     displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
     
-    // 播放媒体
-    showMediaInTechPlayer(url, type, displayTime, alignLeft);
+    // 检查媒体类型有效性
+    if (type !== 'image' && type !== 'video') {
+        console.warn(`不支持的媒体类型: ${type}，默认使用image`);
+        type = 'image';
+    }
+    
+    // 检查当前是否没有媒体在展示和排队
+    const noActiveMedia = !isProcessingMediaQueue && 
+                        imageMediaQueue.length === 0 && 
+                        videoMediaQueue.length === 0 && 
+                        !document.querySelector('#tech-media-player.active');
+    
+    // 判断是单个URL、数组还是对象
+    if (Array.isArray(url)) {
+        console.log('接收到媒体数组，添加到队列');
+        
+        // 如果数组为空，直接返回
+        if (url.length === 0) {
+            console.warn('传入的媒体数组为空');
+            return;
+        }
+        
+        // 清空现有队列
+        imageMediaQueue = [];
+        videoMediaQueue = [];
+        
+        // 检查数组中的内容类型
+        url.forEach(item => {
+            if (typeof item === 'string') {
+                // 简单URL字符串，使用传入的类型和显示时间
+                addMediaToQueue(item, type, displayTime);
+            } else if (typeof item === 'object' && item !== null) {
+                // 对象，包含自己的URL、类型和显示时间
+                const itemType = item.type || type;
+                const itemUrl = item.url || item.src || '';
+                const itemDisplayTime = item.displayTime || displayTime;
+                
+                if (itemUrl) {
+                    addMediaToQueue(itemUrl, itemType, itemDisplayTime);
+                } else {
+                    console.warn('忽略无效的媒体项:', item);
+                }
+            } else {
+                console.warn('忽略无效的媒体项:', item);
+            }
+        });
+        
+        // 立即开始处理，不等待
+        if (queueProcessingTimer) {
+            clearTimeout(queueProcessingTimer);
+        }
+        setTimeout(processMediaQueues, 100);
+    } else if (typeof url === 'object' && url !== null && (url.url || url.src)) {
+        // 单个媒体配置对象
+        const mediaUrl = url.url || url.src;
+        const mediaType = url.type || type;
+        const mediaDisplayTime = url.displayTime || displayTime;
+        
+        // 如果当前没有媒体在展示和排队，直接显示而不使用队列
+        if (noActiveMedia) {
+            console.log(`当前无媒体展示，单个${mediaType}配置对象直接播放: ${mediaUrl}`);
+            showMediaInTechPlayer(mediaUrl, mediaType, mediaDisplayTime, alignLeft);
+        } else if (mediaType === 'image') {
+            // 对图片使用队列处理以确保自动关闭
+            console.log(`单个图片配置对象，使用队列处理: ${mediaUrl}, 显示时间: ${mediaDisplayTime}秒`);
+            imageMediaQueue = [];
+            videoMediaQueue = [];
+            addMediaToQueue(mediaUrl, mediaType, mediaDisplayTime);
+            setTimeout(processMediaQueues, 100);
+        } else {
+            // 视频直接播放
+            console.log(`单个视频配置对象，直接播放: ${mediaUrl}`);
+            showMediaInTechPlayer(mediaUrl, mediaType, mediaDisplayTime, alignLeft);
+        }
+    } else {
+        // 单个URL字符串
+        
+        // 如果当前没有媒体在展示和排队，直接显示而不使用队列
+        if (noActiveMedia) {
+            console.log(`当前无媒体展示，单个${type}直接播放: ${url}`);
+            showMediaInTechPlayer(url, type, displayTime, alignLeft);
+        } else if (type === 'image') {
+            // 对图片使用队列处理以确保自动关闭
+            console.log(`单个图片URL，使用队列处理: ${url}, 显示时间: ${displayTime}秒`);
+            imageMediaQueue = [];
+            videoMediaQueue = [];
+            addMediaToQueue(url, type, displayTime);
+            setTimeout(processMediaQueues, 100);
+        } else {
+            // 视频直接播放
+            console.log(`单个视频URL，直接播放: ${url}`);
+            showMediaInTechPlayer(url, type, displayTime, alignLeft);
+        }
+    }
 };
 
 /**
@@ -2542,23 +2627,795 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
 function testMediaPlayer() {
     console.log('测试媒体播放器功能');
     
-    // 随机选择图片或视频进行测试
-    const isVideo = Math.random() > 0.5;
-    const isOne = Math.random() > 0.5;
+    // 随机决定测试单个媒体还是队列
+    const isQueue = Math.random() > 0.5;
     
-    if (isVideo) {
-        // 测试视频
-        if (isOne) {
-            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+    if (isQueue) {
+        // 测试媒体队列
+        console.log('测试媒体队列播放');
+        
+        // 随机决定是图片队列还是视频队列
+        const isVideoQueue = Math.random() > 0.5;
+        
+        if (isVideoQueue) {
+            // 测试视频队列
+            console.log('测试视频队列');
+            const videoUrls = [
+                './static/videos/outup.mp4',
+                './static/videos/outup.mp4',
+                './static/videos/outup.mp4'
+            ];
+            window.showMediaContentInPlayer(videoUrls, 'video');
+            console.log('视频队列将自动播放并切换');
         } else {
-            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+            // 测试图片队列
+            console.log('测试图片队列');
+            const imageUrls = [
+                './static/images/test/wttpssr.png',
+                './static/images/test/wttp.png'
+            ];
+            window.showMediaContentInPlayer(imageUrls, 'image', 3); // 每张图片显示3秒
+            console.log('图片队列将每3秒自动切换');
         }
     } else {
-        // 测试图片
-        if (isOne) {
-            window.showMediaContentInPlayer('./static/images/test/wttpssr.png', 'image', 5);
+        // 测试单个媒体
+        console.log('测试单个媒体播放');
+        
+        // 随机选择图片或视频进行测试
+        const isVideo = Math.random() > 0.5;
+        
+        if (isVideo) {
+            // 测试视频
+            window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
+            console.log('测试单个视频播放');
         } else {
-            window.showMediaContentInPlayer('./static/images/test/wttp.png', 'image', 5);
+            // 测试图片
+            window.showMediaContentInPlayer('./static/images/test/wttpssr.png', 'image', 5);
+            console.log('测试单个图片播放，5秒后自动关闭');
         }
     }
 }
+
+// 添加全局计时器变量
+let techPlayerAutoCloseTimer = null;
+// 添加媒体队列管理系统变量
+let imageMediaQueue = []; // 图片队列
+let videoMediaQueue = []; // 视频队列
+let queueProcessingTimer = null; // 队列处理计时器
+let isProcessingMediaQueue = false; // 标记是否正在处理队列
+let queueWaitTime = 3000; // 队列等待时间，3秒没有新媒体进入就开始处理队列
+let currentlyPlayingMedia = null; // 当前正在播放的媒体
+// 添加视频播放状态跟踪
+let videoPlayedAtLeastOnce = false;
+let isMediaVideoType = false;
+
+/**
+ * 添加媒体到对应队列
+ * @param {string|object} media - 媒体URL或包含url、type和displayTime的对象
+ * @param {string} type - 媒体类型 'image' 或 'video'，如果media是对象且包含type则可省略
+ * @param {number} displayTime - 图片显示时间（秒），默认5秒
+ */
+function addMediaToQueue(media, type = 'image', displayTime = 5) {
+    // 对参数进行校验和标准化
+    if (!media) {
+        console.error('无效的媒体参数');
+        return;
+    }
+    
+    // 验证媒体类型
+    if (type !== 'image' && type !== 'video') {
+        console.warn(`不支持的媒体类型: ${type}，默认使用image`);
+        type = 'image';
+    }
+    
+    // 将媒体信息规范化为对象形式
+    let mediaObj;
+    if (typeof media === 'string') {
+        mediaObj = {
+            url: media,
+            displayTime: type === 'image' ? displayTime : 0,
+            type: type
+        };
+    } else if (typeof media === 'object' && media !== null) {
+        // 如果是对象，保留原有属性并添加缺失的属性
+        const mediaType = media.type || type;
+        mediaObj = {
+            ...media,
+            url: media.url || media.src || '',
+            displayTime: media.displayTime || (mediaType === 'image' ? displayTime : 0),
+            type: mediaType
+        };
+        
+        // 检查URL是否有效
+        if (!mediaObj.url) {
+            console.error('媒体对象缺少有效的URL');
+            return;
+        }
+    } else {
+        console.error('无效的媒体参数类型');
+        return;
+    }
+    
+    console.log(`添加${mediaObj.type}到队列:`, mediaObj.url);
+    
+    // 根据类型添加到对应队列
+    if (mediaObj.type === 'image') {
+        imageMediaQueue.push(mediaObj);
+    } else if (mediaObj.type === 'video') {
+        videoMediaQueue.push(mediaObj);
+    }
+    
+    // 重置队列处理计时器
+    resetQueueProcessingTimer();
+}
+
+/**
+ * 重置队列处理计时器
+ */
+function resetQueueProcessingTimer() {
+    // 清除现有计时器
+    if (queueProcessingTimer) {
+        clearTimeout(queueProcessingTimer);
+        queueProcessingTimer = null;
+    }
+    
+    // 设置新计时器，等待queueWaitTime后开始处理队列
+    queueProcessingTimer = setTimeout(processMediaQueues, queueWaitTime);
+    console.log(`队列处理计时器已重置，${queueWaitTime/1000}秒后开始处理队列`);
+}
+
+/**
+ * 处理媒体队列，按顺序展示
+ */
+function processMediaQueues() {
+    // 清除队列处理计时器
+    if (queueProcessingTimer) {
+        clearTimeout(queueProcessingTimer);
+        queueProcessingTimer = null;
+    }
+    
+    // 如果正在处理队列或两个队列都为空，则直接返回
+    if (isProcessingMediaQueue || (imageMediaQueue.length === 0 && videoMediaQueue.length === 0)) {
+        console.log("没有需要处理的媒体或队列正在处理中");
+        return;
+    }
+    
+    console.log("开始处理媒体队列");
+    isProcessingMediaQueue = true;
+    
+    // 检查队列中的媒体项数量
+    const totalMediaItems = imageMediaQueue.length + videoMediaQueue.length;
+    console.log(`队列中共有 ${totalMediaItems} 个媒体项待处理`);
+    
+    // 开始处理第一个媒体项
+    processNextMedia();
+}
+
+/**
+ * 处理下一个媒体项
+ */
+function processNextMedia() {
+    // 检查队列是否为空
+    if (imageMediaQueue.length === 0 && videoMediaQueue.length === 0) {
+        console.log("所有媒体队列处理完毕");
+        isProcessingMediaQueue = false;
+        
+        // 如果当前正在显示的是图片，并且没有更多媒体，设置一个计时器在displayTime后关闭播放器
+        if (currentlyPlayingMedia && currentlyPlayingMedia.type === 'image') {
+            console.log("队列为空，当前显示的是图片，设置关闭计时器");
+            if (techPlayerAutoCloseTimer) {
+                clearTimeout(techPlayerAutoCloseTimer);
+            }
+            techPlayerAutoCloseTimer = setTimeout(() => {
+                console.log("队列结束，图片显示时间到，关闭播放器");
+                closeTechMediaPlayer();
+            }, currentlyPlayingMedia.displayTime * 1000);
+        }
+        return;
+    }
+    
+    let mediaToProcess;
+    let mediaType;
+    
+    // 优先处理图片队列
+    if (imageMediaQueue.length > 0) {
+        mediaToProcess = imageMediaQueue.shift();
+        mediaType = 'image';
+    } 
+    // 然后处理视频队列
+    else if (videoMediaQueue.length > 0) {
+        mediaToProcess = videoMediaQueue.shift();
+        mediaType = 'video';
+    }
+    
+    if (mediaToProcess) {
+        // 检查mediaToProcess是否是对象，如果是则提取URL、类型和显示时间
+        let url, displayTime;
+        
+        if (typeof mediaToProcess === 'string') {
+            url = mediaToProcess;
+            displayTime = mediaType === 'image' ? 5 : 0; // 默认图片显示5秒
+        } else if (typeof mediaToProcess === 'object' && mediaToProcess !== null) {
+            url = mediaToProcess.url;
+            displayTime = mediaToProcess.displayTime || (mediaType === 'image' ? 5 : 0);
+            // 如果对象中有type属性，使用它覆盖队列类型
+            if (mediaToProcess.type) {
+                mediaType = mediaToProcess.type;
+            }
+        } else {
+            console.error("无效的媒体项:", mediaToProcess);
+            // 处理下一个媒体
+            setTimeout(processNextMedia, 100);
+            return;
+        }
+        
+        console.log(`处理${mediaType}: ${url}, 显示时间: ${displayTime}秒`);
+        currentlyPlayingMedia = { url, type: mediaType, displayTime };
+        
+        // 展示媒体
+        showMediaInTechPlayer(
+            url, 
+            mediaType, 
+            displayTime,
+            undefined,  // alignLeft - 使用默认行为
+            false       // isLoop - 不循环播放
+        );
+        
+        // 为图片设置超时处理
+        if (mediaType === 'image' && displayTime > 0) {
+            // 检查是否还有其他媒体在队列中
+            const hasMoreMedia = imageMediaQueue.length > 0 || videoMediaQueue.length > 0;
+            
+            if (techPlayerAutoCloseTimer) {
+                clearTimeout(techPlayerAutoCloseTimer);
+                techPlayerAutoCloseTimer = null;
+            }
+            
+            techPlayerAutoCloseTimer = setTimeout(() => {
+                console.log(`图片${url}显示时间到，${hasMoreMedia ? '准备处理下一个媒体' : '准备关闭播放器'}`);
+                processNextMedia(); // 处理下一个媒体或关闭播放器
+            }, displayTime * 1000);
+        }
+        // 视频的处理逻辑由视频播放结束事件触发，在showMediaInTechPlayer中设置
+    } else {
+        console.warn("队列中没有有效的媒体项");
+        isProcessingMediaQueue = false;
+    }
+}
+
+/**
+ * 在科技感播放框中显示媒体内容
+ * @param {string} url - 媒体URL
+ * @param {string} type - 媒体类型，'image' 或 'video'
+ * @param {number} displayTime - 图片显示时间（秒），默认5秒
+ * @param {boolean} alignLeft - 是否左对齐播放框，默认根据上一次位置交替
+ * @param {boolean} isLoop - 视频是否循环播放，默认为false
+ */
+function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = false) {
+    // 先清除可能存在的自动关闭计时器
+    if (techPlayerAutoCloseTimer) {
+        clearTimeout(techPlayerAutoCloseTimer);
+        techPlayerAutoCloseTimer = null;
+    }
+    
+    // 停止可能存在的音频检测
+    stopAudioSilenceDetection();
+    
+    // 重置视频播放状态跟踪
+    videoPlayedAtLeastOnce = false;
+    isMediaVideoType = type === 'video';
+    
+    // 获取播放框和内容区域
+    const player = document.getElementById('tech-media-player');
+    const content = player.querySelector('.tech-media-content');
+    const playerInner = player.querySelector('.tech-media-player-inner');
+    
+    // 获取设置和对话模态框
+    const settingsModal = document.getElementById('settings-modal');
+    const chatModal = document.getElementById('chat-modal');
+    
+    // 隐藏UI元素
+    const autoHideElements = [
+        document.getElementById('show-chat-modal'),
+        document.getElementById('settings-button'),
+        document.getElementById('voice-recognition-button')
+    ];
+    const canvasStatus = document.getElementById('canvas-status');
+    
+    // 隐藏所有UI元素
+    autoHideElements.forEach(el => { if(el) el.style.opacity = 0; });
+    if(canvasStatus) canvasStatus.style.opacity = 0;
+    
+    // 关闭模态框
+    if(settingsModal) settingsModal.style.display = 'none';
+    if(chatModal) chatModal.style.display = 'none';
+    
+    // 清空现有内容
+    content.innerHTML = '';
+    
+    // 获取数字人画布
+    const canvas = document.getElementById('canvas');
+    if (!canvas) {
+        console.error('找不到数字人画布元素');
+        return;
+    }
+    
+    // 创建媒体元素
+    let mediaElement;
+    if (type === 'image') {
+        mediaElement = document.createElement('img');
+        mediaElement.src = url;
+    } else if (type === 'video') {
+        mediaElement = document.createElement('video');
+        mediaElement.src = url;
+        mediaElement.autoplay = true;
+        mediaElement.controls = true;
+        mediaElement.loop = isLoop; // 设置视频循环播放
+        
+        // 添加视频播放结束事件监听器
+        mediaElement.addEventListener('ended', function() {
+            console.log('视频播放结束');
+            
+            // 如果是队列处理模式，继续处理下一个媒体
+            if (isProcessingMediaQueue) {
+                console.log('继续处理队列中的下一个媒体');
+                // 不需要关闭播放器，直接处理下一个媒体
+                processNextMedia();
+            } else if (!isLoop) {
+                console.log('视频不循环播放，自动关闭播放器');
+                closeTechMediaPlayer();
+            }
+        });
+    } else {
+        console.error('不支持的媒体类型:', type);
+        return;
+    }
+    
+    // 添加媒体元素到播放框
+    content.appendChild(mediaElement);
+    
+    // 当媒体加载完成后，设置尺寸和位置
+    mediaElement.onload = mediaElement.onloadedmetadata = function() {
+        // 获取原始媒体比例
+        const mediaWidth = this.naturalWidth || this.videoWidth;
+        const mediaHeight = this.naturalHeight || this.videoHeight;
+        const aspectRatio = mediaWidth / mediaHeight;
+        
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        // 判断是否为小屏幕设备（宽度小于800px）
+        const isSmallScreen = windowWidth < 800;
+        console.log(`屏幕宽度: ${windowWidth}px, 是否小屏幕: ${isSmallScreen}`);
+        
+        // 根据媒体比例设置播放框尺寸
+        let playerWidth, playerHeight;
+        if (aspectRatio >= 1) { // 宽大于或等于高（横版，包括正方形）
+            // 宽度占屏幕的3/5，高度根据比例确定
+            playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.6);
+            playerHeight = playerWidth / aspectRatio;
+            
+            // 检查高度是否超过屏幕高度（针对宽高比接近1:1的媒体）
+            if (!isSmallScreen && aspectRatio <= 1.3 && playerHeight > windowHeight * 0.9) {
+                console.log(`宽高比接近1:1的媒体(${aspectRatio})，高度(${playerHeight})超过屏幕90%，重新计算尺寸`);
+                playerHeight = windowHeight * 0.9; // 设置为屏幕高度的90%
+                playerWidth = playerHeight * aspectRatio; // 按原始比例重新计算宽度
+            }
+        } else { // 高大于宽（竖版）
+            // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
+            playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.9);
+            
+            // 计算16:9比例的播放框宽度
+            const playerAspectRatio = 16/9;
+            playerWidth = playerHeight * (9/16);
+            
+            // 如果播放框宽度超过窗口宽度的限制，则缩小高度
+            if (playerWidth > windowWidth * (isSmallScreen ? 0.9 : 0.8)) {
+                playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.8);
+                playerHeight = playerWidth * (16/9);
+            }
+            
+            console.log(`竖版媒体：使用16:9播放框 ${playerWidth}x${playerHeight}`);
+        }
+        
+        // 设置播放框尺寸
+        playerInner.style.width = `${playerWidth}px`;
+        playerInner.style.height = `${playerHeight}px`;
+        
+        // 设置媒体元素在播放框中居中并保持原始比例
+        if (aspectRatio < 1) {
+            // 计算图片实际显示尺寸，在播放框内保持原始比例
+            let imgWidth, imgHeight;
+            if (mediaHeight > playerHeight) {
+                // 图片高度受限
+                imgHeight = playerHeight;
+                imgWidth = imgHeight * aspectRatio;
+            } else {
+                // 使用原始尺寸
+                imgWidth = mediaWidth;
+                imgHeight = mediaHeight;
+            }
+            
+            // 设置图片样式以在播放框中居中
+            mediaElement.style.display = 'block';
+            mediaElement.style.margin = '0 auto';
+            mediaElement.style.height = `${imgHeight}px`;
+            mediaElement.style.width = `${imgWidth}px`;
+            
+            console.log(`竖版图片实际显示尺寸: ${imgWidth}x${imgHeight}`);
+        }
+        
+        // 设置播放框位置
+        playerInner.style.position = 'absolute';
+        
+        // 默认将数字人位置设为null
+        let digitalHumanPosition = null;
+        
+        if (isSmallScreen) {
+            // 小屏幕设备
+            let leftPosition;
+            
+            // 对于竖图或竖视频(短视频)使用特殊的居中逻辑
+            if (aspectRatio < 1) {
+                // 特殊计算方式
+                leftPosition = (windowWidth - 2*playerWidth) / 2;
+                console.log('小屏幕竖图/短视频：特殊居中逻辑，左边距:', leftPosition);
+            } else {
+                // 其他类型媒体使用普通居中逻辑
+                leftPosition = (windowWidth - playerWidth) / 2;
+                console.log('小屏幕横版媒体：普通居中逻辑，左边距:', leftPosition);
+            }
+            
+            playerInner.style.left = `${leftPosition}px`;
+            playerInner.style.right = 'auto'; // 确保right属性不会影响居中
+            playerInner.style.top = '35px';
+            
+            // 小屏幕下数字人居中放置
+            digitalHumanPosition = null;
+        } else {
+            // 大屏幕下，始终使用左/右下角放置数字人
+            let digitalHumanOnLeft = false;
+            
+            // 根据位置模式设置数字人位置
+            switch(window.digitalHumanPositionMode) {
+                case 1: // 始终左下角
+                    digitalHumanOnLeft = true;
+                    console.log('数字人固定放置在左下角');
+                    break;
+                case 2: // 始终右下角
+                    digitalHumanOnLeft = false;
+                    console.log('数字人固定放置在右下角');
+                    break;
+                case 3: // 左右交替
+                    // 与上次位置相反
+                    digitalHumanOnLeft = !lastPositionWasLeft;
+                    console.log(`数字人交替放置在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                    // 更新位置记录
+                    lastPositionWasLeft = digitalHumanOnLeft;
+                    break;
+                case 0: // 随机位置
+                default:
+                    digitalHumanOnLeft = Math.random() > 0.5;
+                    console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
+                    break;
+            }
+            
+            // 保存数字人位置，大屏幕下总是使用左/右
+            digitalHumanPosition = digitalHumanOnLeft;
+            
+            // 对于竖版图片(高>宽)，始终让播放框水平居中显示
+            if (aspectRatio < 1) {
+                // 竖版图片，播放框居中显示
+                const leftPosition = (windowWidth - playerWidth) / 2;
+                playerInner.style.left = `${leftPosition}px`;
+                playerInner.style.right = 'auto';
+                console.log('竖版媒体：播放框水平居中显示，leftPosition:', leftPosition);
+            } else {
+                // 横版图片，根据数字人位置和播放框宽度决定位置
+                if (playerWidth <= (windowWidth - 2 * window.digitalHumanWidth)) {
+                    // 如果播放框足够小，则居中显示
+                    const leftPosition = (windowWidth - playerWidth) / 2;
+                    playerInner.style.left = `${leftPosition}px`;
+                    playerInner.style.right = 'auto';
+                } else {
+                    // 如果播放框较大，则根据数字人位置放在另一侧
+                    if (digitalHumanOnLeft) {
+                        // 数字人在左侧，播放框在右侧居中
+                        const rightAreaWidth = windowWidth - window.digitalHumanWidth;
+                        const leftPosition = window.digitalHumanWidth + (rightAreaWidth - playerWidth) / 2;
+                        playerInner.style.left = `${leftPosition}px`;
+                        playerInner.style.right = 'auto';
+                    } else {
+                        // 数字人在右侧，播放框在左侧居中
+                        const leftAreaWidth = windowWidth - window.digitalHumanWidth;
+                        const leftPosition = (leftAreaWidth - playerWidth) / 2;
+                        playerInner.style.left = `${leftPosition}px`;
+                        playerInner.style.right = 'auto';
+                    }
+                }
+            }
+        }
+        
+        // 添加active类以显示播放框
+        player.classList.add('active');
+        
+        // 使用moveDigitalHumanForMedia移动数字人到对应位置
+        moveDigitalHumanForMedia(canvas, digitalHumanPosition);
+    };
+    
+    // 图片加载失败处理
+    mediaElement.onerror = function() {
+        console.error('媒体加载失败:', url);
+        
+        // 如果是队列处理模式，继续处理下一个媒体
+        if (isProcessingMediaQueue) {
+            console.log('媒体加载失败，继续处理队列中的下一个媒体');
+            processNextMedia();
+        } else {
+            closeTechMediaPlayer();
+        }
+    };
+    
+    // 如果是图片且不在队列处理模式，设置自动关闭定时器
+    if (type === 'image' && displayTime > 0 && !isProcessingMediaQueue) {
+        techPlayerAutoCloseTimer = setTimeout(function() {
+            console.log(`非队列模式：图片显示${displayTime}秒后自动关闭`);
+            closeTechMediaPlayer();
+        }, displayTime * 1000);
+    }
+}
+
+/**
+ * 关闭科技感播放框
+ */
+function closeTechMediaPlayer() {
+    // 清除自动关闭计时器
+    if (techPlayerAutoCloseTimer) {
+        clearTimeout(techPlayerAutoCloseTimer);
+        techPlayerAutoCloseTimer = null;
+    }
+    
+    // 停止音频静音检测
+    if (typeof stopAudioSilenceDetection === 'function') {
+        stopAudioSilenceDetection();
+    }
+    
+    // 重置视频播放状态
+    if (typeof videoPlayedAtLeastOnce !== 'undefined') {
+        videoPlayedAtLeastOnce = false;
+    }
+    if (typeof isMediaVideoType !== 'undefined') {
+        isMediaVideoType = false;
+    }
+    
+    // 如果当前是在处理队列，检查是否有下一个媒体需要处理
+    if (isProcessingMediaQueue) {
+        console.log('从队列中关闭媒体');
+        currentlyPlayingMedia = null;
+        
+        // 检查队列中是否还有媒体
+        if (imageMediaQueue.length > 0 || videoMediaQueue.length > 0) {
+            // 立即处理下一个，不需要真正关闭播放器
+            console.log('队列中还有媒体，处理下一个');
+            setTimeout(processNextMedia, 500); // 稍微延迟以便平滑过渡
+            return; // 不执行后续关闭代码
+        } else {
+            // 队列为空，正常关闭
+            isProcessingMediaQueue = false;
+            console.log('队列已清空，关闭播放器');
+        }
+    }
+    
+    const player = document.getElementById('tech-media-player');
+    const canvas = document.getElementById('canvas');
+    
+    if (!player || !canvas) return;
+    
+    // 移除active类，触发淡出动画
+    player.classList.remove('active');
+    
+    // 恢复数字人原始样式
+    if (canvas.originalStyle) {
+        // 添加过渡动画
+        canvas.style.transition = 'all 0.5s ease-in-out';
+        
+        // 恢复原始样式
+        Object.keys(canvas.originalStyle).forEach(key => {
+            canvas.style[key] = canvas.originalStyle[key];
+        });
+        
+        // 动画结束后清除transition
+        setTimeout(() => {
+            canvas.style.transition = '';
+            delete canvas.originalStyle;
+        }, 500);
+    }
+    
+    // 清空媒体内容
+    setTimeout(() => {
+        const content = player.querySelector('.tech-media-content');
+        if (content) content.innerHTML = '';
+    }, 500);
+}
+
+/**
+ * 对外暴露的方法，用于在科技感播放框中显示图片或视频
+ * @param {string|Array|Object} url - 媒体URL或URL数组或媒体配置对象数组
+ * @param {string} type - 媒体类型('image'或'video')，当url为数组且包含类型时可省略
+ * @param {number} displayTime - 图片显示时间(秒)，默认5秒，仅对图片有效
+ * @param {boolean} alignLeft - 是否左对齐播放框，不指定则交替
+ */
+window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5, alignLeft) {
+    if (!url) {
+        console.error('URL不能为空');
+        return;
+    }
+    
+    // 确保displayTime为有效数字
+    displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
+    
+    // 检查媒体类型有效性
+    if (type !== 'image' && type !== 'video') {
+        console.warn(`不支持的媒体类型: ${type}，默认使用image`);
+        type = 'image';
+    }
+    
+    // 检查当前是否没有媒体在展示和排队
+    const noActiveMedia = !isProcessingMediaQueue && 
+                        imageMediaQueue.length === 0 && 
+                        videoMediaQueue.length === 0 && 
+                        !document.querySelector('#tech-media-player.active');
+    
+    // 判断是单个URL、数组还是对象
+    if (Array.isArray(url)) {
+        console.log('接收到媒体数组，添加到队列');
+        
+        // 如果数组为空，直接返回
+        if (url.length === 0) {
+            console.warn('传入的媒体数组为空');
+            return;
+        }
+        
+        // 清空现有队列
+        imageMediaQueue = [];
+        videoMediaQueue = [];
+        
+        // 检查数组中的内容类型
+        url.forEach(item => {
+            if (typeof item === 'string') {
+                // 简单URL字符串，使用传入的类型和显示时间
+                addMediaToQueue(item, type, displayTime);
+            } else if (typeof item === 'object' && item !== null) {
+                // 对象，包含自己的URL、类型和显示时间
+                const itemType = item.type || type;
+                const itemUrl = item.url || item.src || '';
+                const itemDisplayTime = item.displayTime || displayTime;
+                
+                if (itemUrl) {
+                    addMediaToQueue(itemUrl, itemType, itemDisplayTime);
+                } else {
+                    console.warn('忽略无效的媒体项:', item);
+                }
+            } else {
+                console.warn('忽略无效的媒体项:', item);
+            }
+        });
+        
+        // 立即开始处理，不等待
+        if (queueProcessingTimer) {
+            clearTimeout(queueProcessingTimer);
+        }
+        setTimeout(processMediaQueues, 100);
+    } else if (typeof url === 'object' && url !== null && (url.url || url.src)) {
+        // 单个媒体配置对象
+        const mediaUrl = url.url || url.src;
+        const mediaType = url.type || type;
+        const mediaDisplayTime = url.displayTime || displayTime;
+        
+        // 如果当前没有媒体在展示和排队，直接显示而不使用队列
+        if (noActiveMedia) {
+            console.log(`当前无媒体展示，单个${mediaType}配置对象直接播放: ${mediaUrl}`);
+            showMediaInTechPlayer(mediaUrl, mediaType, mediaDisplayTime, alignLeft);
+        } else if (mediaType === 'image') {
+            // 对图片使用队列处理以确保自动关闭
+            console.log(`单个图片配置对象，使用队列处理: ${mediaUrl}, 显示时间: ${mediaDisplayTime}秒`);
+            imageMediaQueue = [];
+            videoMediaQueue = [];
+            addMediaToQueue(mediaUrl, mediaType, mediaDisplayTime);
+            setTimeout(processMediaQueues, 100);
+        } else {
+            // 视频直接播放
+            console.log(`单个视频配置对象，直接播放: ${mediaUrl}`);
+            showMediaInTechPlayer(mediaUrl, mediaType, mediaDisplayTime, alignLeft);
+        }
+    } else {
+        // 单个URL字符串
+        
+        // 如果当前没有媒体在展示和排队，直接显示而不使用队列
+        if (noActiveMedia) {
+            console.log(`当前无媒体展示，单个${type}直接播放: ${url}`);
+            showMediaInTechPlayer(url, type, displayTime, alignLeft);
+        } else if (type === 'image') {
+            // 对图片使用队列处理以确保自动关闭
+            console.log(`单个图片URL，使用队列处理: ${url}, 显示时间: ${displayTime}秒`);
+            imageMediaQueue = [];
+            videoMediaQueue = [];
+            addMediaToQueue(url, type, displayTime);
+            setTimeout(processMediaQueues, 100);
+        } else {
+            // 视频直接播放
+            console.log(`单个视频URL，直接播放: ${url}`);
+            showMediaInTechPlayer(url, type, displayTime, alignLeft);
+        }
+    }
+};
+
+/**
+ * WebSocket消息处理函数，处理媒体消息
+ * 用于在收到WebSocket消息时添加到对应队列
+ * @param {Object} data - 消息数据，包含url和type字段
+ */
+function handleMediaWebSocketMessage(data) {
+    if (!data || !data.url) {
+        console.error('无效的媒体消息数据');
+        return;
+    }
+    
+    const type = data.type || 'image';
+    const displayTime = data.displayTime || (type === 'image' ? 5 : 0);
+    const isArray = Array.isArray(data.url);
+    
+    console.log(`收到WebSocket媒体消息: ${type}, ${isArray ? '媒体数组' : data.url}`);
+    
+    // 如果正在处理队列，直接添加到现有队列
+    if (isProcessingMediaQueue) {
+        console.log("正在处理队列，将新媒体添加到现有队列");
+        
+        if (isArray) {
+            // 处理媒体URL数组
+            data.url.forEach(url => {
+                addMediaToQueue(url, type, displayTime);
+            });
+        } else {
+            // 处理单个URL
+            addMediaToQueue(data.url, type, displayTime);
+        }
+        
+        // 重置队列处理计时器，确保在3秒内没有新媒体加入时才开始处理
+        resetQueueProcessingTimer();
+        return;
+    }
+    
+    // 不在处理队列，根据媒体类型和数量决定处理方式
+    if (isArray) {
+        // 数组，使用队列处理
+        console.log("收到媒体数组，使用队列处理");
+        
+        // 清空现有队列
+        imageMediaQueue = [];
+        videoMediaQueue = [];
+        
+        // 添加所有媒体项
+        data.url.forEach(url => {
+            addMediaToQueue(url, type, displayTime);
+        });
+        
+        // 立即开始处理
+        setTimeout(processMediaQueues, 100);
+    } else {
+        // 单个媒体，检查类型
+        if (type === 'image') {
+            // 图片使用队列处理，确保自动关闭
+            console.log("收到单个图片，使用队列处理确保自动关闭");
+            imageMediaQueue = [];
+            videoMediaQueue = [];
+            addMediaToQueue(data.url, type, displayTime);
+            setTimeout(processMediaQueues, 100);
+        } else {
+            // 视频直接播放
+            console.log("收到单个视频，直接播放");
+            showMediaInTechPlayer(data.url, type, displayTime);
+        }
+    }
+}
+// 

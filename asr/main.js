@@ -1471,7 +1471,7 @@ function onASRResult(result) {
         } else {
             info_div.innerHTML = "<span style='color:#ff9f1c'>人脸检测功能已停用，直接发送消息</span>";
             // 回退到原来的直接发送方式
-            window.parent.stopAudioSilenceDetection();
+            // window.parent.stopAudioSilenceDetection();
             fetch(`http://${window.parent.host}/human`, {
                 body: JSON.stringify({
                     text: result,
@@ -1492,7 +1492,7 @@ function onASRResult(result) {
                     console.log('识别文本发送成功');
                     window.parent.addChatMessage(result, 'right', false, 'audio');
                     // 开始检测数字人说话
-                    window.parent.startAudioSilenceDetection();
+                    // window.parent.startAudioSilenceDetection();
                     // 保持麦克风静音状态，由计时器自动恢复
                 }
                 return response.json().catch(e => null);

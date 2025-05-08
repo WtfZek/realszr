@@ -883,6 +883,16 @@
             width: 20px;
             height: 20px;
         }
+
+        #test-human-media:hover {
+            transform: scale(1.1);
+            background-color: #35A171;
+        }
+
+        #test-human-media svg {
+            width: 20px;
+            height: 20px;
+        }
         
         /* 添加语音识别圆形按钮样式 */
         #voice-recognition-button {
@@ -1568,8 +1578,6 @@
                         method: 'POST'
                     });
                     
-                    addChatMessage(message, 'right', false, 'audio');
-                    
                     // 处理响应
                     if (!response.ok) {
                         console.error('后端响应错误:', response.status);
@@ -1641,6 +1649,14 @@
             <polyline points="21 15 16 10 5 21"></polyline>
         </svg>
     </button>
+    <!-- 测试媒体请求的按钮 -->
+    <!-- <button id="test-human-media" style="display: none;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+            <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+    </button> -->
     
     <!-- 新增：测试媒体播放框按钮 -->
     <button id="test-media-player-btn">
@@ -6184,6 +6200,14 @@
             // window.addDefaultMusic('./static/music/另一首音乐.mp3');
             // window.addDefaultMusic('./static/music/custom.mp3', '自定义名称');
         });
+
+        // document.getElementById('test-human-media').addEventListener('click', function() {
+        //     console.log('正在发送媒体请求...');
+        //     fetch(`${window.protocol}://${window.mediaHost}/human`)
+        //         .then(response => response.json())
+        //         .then(data => console.log('请求成功:', data))
+        //         .catch(error => console.error('请求失败:', error));
+        // });
     </script>
 </body>
 </html>

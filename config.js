@@ -7,6 +7,9 @@ window.protocol = window.location.protocol.replace(':', '');
 window.host = "192.168.3.100:8020";
 
 window.ocHost = "192.168.3.188:8000";
+
+window.mediaHost = "192.168.3.188:8008";
+
 // 根据 protocol 动态判断 ws 协议
 window.wsProtocol = window.protocol === 'https' ? 'wss' : 'ws';
 

@@ -73,7 +73,7 @@ function connectWebSocket(sessionid) {
     }
 
     // Create a new WebSocket connection
-    const wsUrl = `${window.wsProtocol}://${window.host}/ws?sessionid=${sessionid}`;
+    const wsUrl = `${window.wsProtocol}://${window.host}/ws_ai?sessionid=${sessionid}`;
     console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
     ws = new WebSocket(wsUrl);
 
@@ -86,29 +86,37 @@ function connectWebSocket(sessionid) {
     ws.onmessage = function (event) {
         console.log('接收到 WebSocket 消息');
         if (event.data) {
+            const data = JSON.parse(event.data);
             console.log('消息内容不为空，具体内容如下:');
-            console.log("event.data", event.data);
-            
-            try {
-                // 尝试解析JSON，看是否是特殊控制消息
-                const jsonData = JSON.parse(event.data);
-                
-                // 检查是否是新一轮对话的开始
-                const isNewConversationTurn = shouldCreateNewChatItem();
-                
-                // 如果存在特定标记，表示这不是流式消息
-                if (jsonData.type === 'system' || jsonData.complete === true) {
-                    // 系统消息或完整消息，不使用流式处理
-                    addChatMessage(jsonData.text || jsonData.message || event.data, 'left', false, 'szr');
-                    // 非流式消息后，重置当前流ID
-                    window.currentStreamingId = null;
-                } else {
-                    // 其他JSON消息，作为普通文本显示，使用流式处理
-                    addChatMessage(jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true, 'szr');
+            console.log("event.data", data);
+            if (data.type === 'video') {
+                window.showMediaContentInPlayer(data.url, data.type);
+            } else if (data.type === 'image') {
+                window.showMediaContentInPlayer(data.url, data.type, 99);
+            } else if (data.type === 'text') {
+                try {
+                    // 尝试解析JSON，看是否是特殊控制消息
+                    const jsonData = JSON.parse(event.data);
+
+                    // 检查是否是新一轮对话的开始
+                    const isNewConversationTurn = shouldCreateNewChatItem();
+
+                    // 如果存在特定标记，表示这不是流式消息
+                    if (jsonData.type === 'system' || jsonData.complete === true) {
+                        // 系统消息或完整消息，不使用流式处理
+                        addChatMessage(jsonData.url || jsonData.text || jsonData.message || event.data, 'left', false, 'szr');
+                        // 非流式消息后，重置当前流ID
+                        window.currentStreamingId = null;
+                    } else {
+                        // 其他JSON消息，作为普通文本显示，使用流式处理
+                        addChatMessage(jsonData.url || jsonData.text || jsonData.message || JSON.stringify(jsonData), 'left', true, 'szr');
+                    }
+                } catch (e) {
+                    // 不是JSON，作为普通文本用流式处理
+                    addChatMessage(event.data, 'left', true, 'szr');
                 }
-            } catch (e) {
-                // 不是JSON，作为普通文本用流式处理
-                addChatMessage(event.data, 'left', true, 'szr');
+            } else if (data.type === 'cmd') {
+                if (data.url === 'stop') closeTechMediaPlayer();
             }
         } else {
             console.log('接收到的消息内容为空');
@@ -127,6 +135,69 @@ function connectWebSocket(sessionid) {
             if (!isWebSocketConnected) {
                 console.log('仍然处于未连接状态，开始重新连接...');
                 connectWebSocket(sessionid);
+            } else {
+                console.log('在等待期间已重新连接，无需再次尝试');
+            }
+        }, 5000);
+    };
+
+    ws.onerror = function (error) {
+        console.error('WebSocket 发生错误');
+        console.error('错误详情:', error);
+    };
+}
+
+function connectMediaWebSocket(sessionid) {
+    console.log(`开始尝试建立 WebSocket 连接，sessionid: ${sessionid}`);
+
+    // Close existing connection if any
+    if (ws) {
+        console.log('检测到已有 WebSocket 连接，正在关闭旧连接...');
+        ws.close();
+        console.log('旧的 WebSocket 连接已关闭');
+    }
+
+    // Create a new WebSocket connection
+    const wsUrl = `${window.wsProtocol}://${window.host}/ws_ai?sessionid=${sessionid}`;
+    console.log(`正在尝试连接到 WebSocket 地址: ${wsUrl}`);
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = function () {
+        console.log('WebSocket 连接已成功建立');
+        isWebSocketConnected = true;
+        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
+    };
+
+    ws.onmessage = function (event) {
+        console.log('接收到 WebSocket 消息');
+        if (event.data) {
+            const data = JSON.parse(event.data);
+            console.log('消息内容不为空，具体内容如下:');
+            console.log("event.data", data);
+            if (data.type === 'video') {
+                window.showMediaContentInPlayer(data.url, data.type);
+            } else if (data.type === 'image') {
+                window.showMediaContentInPlayer(data.url, data.type, 3);
+            } else {
+                console.log('无效的消息类型');
+            }
+        } else {
+            console.log('接收到的消息内容为空');
+        }
+    };
+
+    ws.onclose = function (event) {
+        console.log('WebSocket 连接已关闭');
+        isWebSocketConnected = false;
+        console.log(`当前 WebSocket 连接状态: ${isWebSocketConnected}`);
+        console.log(`关闭代码: ${event.code}, 关闭原因: ${event.reason}`);
+
+        // Try to reconnect after 5 seconds
+        console.log('将在 5 秒后尝试重新连接...');
+        setTimeout(function () {
+            if (!isWebSocketConnected) {
+                console.log('仍然处于未连接状态，开始重新连接...');
+                connectMediaWebSocket(sessionid);
             } else {
                 console.log('在等待期间已重新连接，无需再次尝试');
             }
@@ -185,6 +256,8 @@ function negotiate() {
         // 使用返回的有效sessionId建立WebSocket连接
         console.log(`从服务器获取到sessionId: ${sessionId}，开始建立WebSocket连接`);
         connectWebSocket(sessionId);
+
+        // connectMediaWebSocket(sessionId);
         
         getConfigOptions();
         
@@ -1236,6 +1309,16 @@ echoForm.addEventListener('submit', function(e) {
         addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
     });
     
+    // 开启检测数字人说话
+    startAudioSilenceDetection();
+
+    // fetch(`${window.protocol}://${window.mediaHost}/human`)
+    // .then(response => response.json())
+    // .then(data => console.log('请求成功:', data))
+    // .catch(error => console.error('请求失败:', error));
+    
+
+    
     // 清空输入框
     document.getElementById('message').value = '';
 });
@@ -1316,6 +1399,119 @@ function testChatMedia() {
 
 // 添加全局计时器变量
 let techPlayerAutoCloseTimer = null;
+// 添加音频检测计时器变量
+let audioSilenceDetectionTimer = null;
+// 添加静音检测阈值和计数器
+let silenceThreshold = -22; // 提高阈值，更容易检测到静音
+let silenceCounter = 0;
+let maxSilenceCount = 2; // 减少连续静音次数要求，加快响应
+
+/**
+ * 检测音频流是否静音的函数
+ * 如果检测到持续静音状态，会自动关闭媒体播放器
+ */
+function startAudioSilenceDetection() {
+    // 清除可能存在的旧计时器
+    if (audioSilenceDetectionTimer) {
+        clearInterval(audioSilenceDetectionTimer);
+        audioSilenceDetectionTimer = null;
+    }
+    
+    // 重置静音计数器
+    silenceCounter = 0;
+    
+    // 获取音频元素
+    const audioElement = document.getElementById('audio');
+    if (!audioElement || !audioElement.srcObject) {
+        console.log("没有活动的音频流，无法检测静音");
+        return;
+    }
+    
+    console.log("开始等待首次声音出现...");
+    
+    // 创建音频分析器
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(audioElement.srcObject);
+    microphone.connect(analyser);
+    
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    // 首先创建一个检测器等待第一次有声音出现
+    const waitForFirstSound = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        
+        // 计算平均音量
+        let sum = 0;
+        for(let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+        }
+        const average = sum / bufferLength;
+        
+        // 转换为分贝
+        const db = 20 * Math.log10(average / 255);
+        
+        console.log(`等待声音出现，当前音频分贝: ${db.toFixed(2)} dB`);
+        
+        // 检查是否有声音(高于阈值)
+        if (db >= silenceThreshold && !isNaN(db)) {
+            console.log("检测到首次声音，开始正式监测静音状态");
+            clearInterval(waitForFirstSound);
+            
+            // 重置静音计数器
+            silenceCounter = 0;
+            
+            // 开始正式的静音检测
+            audioSilenceDetectionTimer = setInterval(() => {
+                analyser.getByteFrequencyData(dataArray);
+                
+                // 计算平均音量
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                
+                // 转换为分贝
+                const db = 20 * Math.log10(average / 255);
+                
+                console.log(`当前音频分贝: ${db.toFixed(2)} dB`);
+                
+                // 检查是否静音
+                if (db < silenceThreshold || isNaN(db)) {
+                    silenceCounter++;
+                    console.log(`检测到静音 ${silenceCounter}/${maxSilenceCount}`);
+                    
+                    if (silenceCounter >= maxSilenceCount) {
+                        console.log("检测到持续静音状态，自动关闭媒体播放器");
+                        clearInterval(audioSilenceDetectionTimer);
+                        audioSilenceDetectionTimer = null;
+                        closeTechMediaPlayer();
+                    }
+                } else {
+                    // 有声音时重置计数器
+                    silenceCounter = 0;
+                }
+            }, 200); // 减少检测间隔，提高检测频率
+        }
+    }, 100); // 更高频率检测首次声音
+    
+    // 保存检测器引用以便可以在停止函数中清除
+    audioSilenceDetectionTimer = waitForFirstSound;
+}
+
+/**
+ * 停止音频静音检测
+ */
+function stopAudioSilenceDetection() {
+    if (audioSilenceDetectionTimer) {
+        clearInterval(audioSilenceDetectionTimer);
+        audioSilenceDetectionTimer = null;
+        console.log("已停止音频静音检测");
+    }
+}
 
 /**
  * 在科技感播放框中显示媒体内容
@@ -1582,6 +1778,9 @@ function closeTechMediaPlayer() {
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
+    
+    // 停止音频静音检测
+    stopAudioSilenceDetection();
     
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');

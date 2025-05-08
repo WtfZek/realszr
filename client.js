@@ -1389,9 +1389,15 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     let mediaElement;
     if (type === 'image') {
         mediaElement = document.createElement('img');
+        // 初始设置为不可见
+        mediaElement.style.opacity = '0';
+        mediaElement.style.transition = 'opacity 0.5s ease-in-out';
         mediaElement.src = url;
     } else if (type === 'video') {
         mediaElement = document.createElement('video');
+        // 初始设置为不可见
+        mediaElement.style.opacity = '0';
+        mediaElement.style.transition = 'opacity 0.5s ease-in-out';
         mediaElement.src = url;
         mediaElement.autoplay = true;
         mediaElement.controls = true;
@@ -1413,7 +1419,7 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
     // 添加媒体元素到播放框
     content.appendChild(mediaElement);
     
-    // 当媒体加载完成后，设置尺寸和位置
+    // 当媒体加载完成后，设置尺寸和位置并显示
     mediaElement.onload = mediaElement.onloadedmetadata = function() {
         // 获取原始媒体比例
         const mediaWidth = this.naturalWidth || this.videoWidth;
@@ -1580,11 +1586,53 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         
         // 使用moveDigitalHumanForMedia移动数字人到对应位置
         moveDigitalHumanForMedia(canvas, digitalHumanPosition);
+        
+        // 媒体位置和尺寸设置完成后，淡入显示媒体
+        setTimeout(() => {
+            mediaElement.style.opacity = '1';
+        }, 100);
     };
     
     // 图片加载失败处理
     mediaElement.onerror = function() {
         console.error('媒体加载失败:', url);
+        console.log('媒体元素:', mediaElement);
+        console.log('轮播状态:', isCarouselPlaying, '当前索引:', mediaCarouselIndex);
+        
+        // 在第二次点击测试按钮时可能会遇到的问题：图片缓存问题
+        if (type === 'image') {
+            // 尝试通过添加时间戳避免缓存问题
+            const timestamp = new Date().getTime();
+            const newUrl = url.includes('?') ? `${url}&_t=${timestamp}` : `${url}?_t=${timestamp}`;
+            console.log('尝试使用带时间戳的URL重新加载:', newUrl);
+            
+            // 先移除旧元素
+            content.removeChild(mediaElement);
+            
+            // 创建新的图片元素
+            const newImage = document.createElement('img');
+            newImage.style.opacity = '0';
+            newImage.style.transition = 'opacity 0.5s ease-in-out';
+            newImage.src = newUrl;
+            
+            // 复制原来的事件处理器
+            newImage.onload = mediaElement.onload;
+            newImage.onerror = function() {
+                console.error('重试加载仍然失败:', newUrl);
+                if (isCarouselPlaying) {
+                    // 加载失败时尝试加载下一个媒体
+                    console.log('放弃当前媒体，尝试加载下一个');
+                    playNextMedia(type, displayTime, alignLeft);
+                } else {
+                    closeTechMediaPlayer();
+                }
+            };
+            
+            // 添加到内容区域
+            content.appendChild(newImage);
+            return;
+        }
+        
         if (isCarouselPlaying) {
             // 加载失败时尝试加载下一个媒体
             console.log('媒体加载失败，尝试加载下一个');
@@ -1594,6 +1642,24 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
         }
     };
     
+    // 图片特别处理: 手动触发一次检查，以防onerror没有被调用
+    if (type === 'image') {
+        // 给100ms的时间让浏览器尝试加载图片
+        setTimeout(() => {
+            // 如果图片已经成功加载或者已经触发了错误处理，则不做任何操作
+            if (mediaElement.complete) {
+                console.log('图片已完成加载，尺寸:', mediaElement.naturalWidth, 'x', mediaElement.naturalHeight);
+                // 如果图片加载完成但没有尺寸，可能是加载失败但没有触发onerror
+                if (mediaElement.naturalWidth === 0) {
+                    console.error('图片加载异常 - 宽度为0:', url);
+                    mediaElement.onerror();
+                }
+            } else {
+                console.log('图片正在加载中...');
+            }
+        }, 200);
+    }
+
     // 如果是图片，设置自动关闭或轮播定时器
     if (type === 'image' && displayTime > 0) {
         techPlayerAutoCloseTimer = setTimeout(function() {
@@ -1615,7 +1681,14 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft) {
  * @param {boolean} alignLeft - 对齐方式
  */
 function playNextMedia(type, displayTime, alignLeft) {
+    console.log('准备播放下一个媒体，当前状态:', { 
+        isCarouselPlaying, 
+        mediaCarouselList: mediaCarouselList.length, 
+        mediaCarouselIndex 
+    });
+    
     if (!isCarouselPlaying || mediaCarouselList.length === 0) {
+        console.log('轮播已停止或媒体列表为空，关闭播放器');
         closeTechMediaPlayer();
         return;
     }
@@ -1630,10 +1703,45 @@ function playNextMedia(type, displayTime, alignLeft) {
         return;
     }
     
-    console.log(`播放轮播的第 ${mediaCarouselIndex + 1}/${mediaCarouselList.length} 个媒体`);
+    console.log(`播放轮播的第 ${mediaCarouselIndex + 1}/${mediaCarouselList.length} 个媒体:`, mediaCarouselList[mediaCarouselIndex]);
     
-    // 播放下一个媒体
-    showMediaInTechPlayer(mediaCarouselList[mediaCarouselIndex], type, displayTime, alignLeft);
+    // 获取播放框和内容区域
+    const player = document.getElementById('tech-media-player');
+    const content = player.querySelector('.tech-media-content');
+    
+    // 添加淡出动画
+    content.style.transition = 'opacity 0.5s ease-in-out';
+    content.style.opacity = '0';
+    
+    // 等待淡出动画完成后加载新媒体
+    setTimeout(() => {
+        try {
+            // 保存当前淡出的内容到临时变量
+            const oldContent = content.innerHTML;
+            
+            // 清空内容区域，准备加载新内容
+            content.innerHTML = '';
+            
+            // 播放下一个媒体
+            const nextMediaUrl = mediaCarouselList[mediaCarouselIndex];
+            console.log('加载下一个媒体:', nextMediaUrl);
+            showMediaInTechPlayer(nextMediaUrl, type, displayTime, alignLeft);
+            
+            // 如果加载失败，恢复旧内容
+            content.onerror = function() {
+                console.error('加载下一个媒体失败，尝试恢复旧内容');
+                content.innerHTML = oldContent;
+            };
+            
+            // 手动设置淡入效果
+            setTimeout(() => {
+                content.style.opacity = '1';
+            }, 50);
+        } catch (error) {
+            console.error('播放下一个媒体时发生错误:', error);
+            closeTechMediaPlayer();
+        }
+    }, 500); // 等待淡出动画完成
 }
 
 /**
@@ -1656,31 +1764,39 @@ function closeTechMediaPlayer() {
     
     if (!player || !canvas) return;
     
-    // 移除active类，触发淡出动画
-    player.classList.remove('active');
-    
-    // 恢复数字人原始样式
-    if (canvas.originalStyle) {
-        // 添加过渡动画
-        canvas.style.transition = 'all 0.5s ease-in-out';
-        
-        // 恢复原始样式
-        Object.keys(canvas.originalStyle).forEach(key => {
-            canvas.style[key] = canvas.originalStyle[key];
-        });
-        
-        // 动画结束后清除transition
-        setTimeout(() => {
-            canvas.style.transition = '';
-            delete canvas.originalStyle;
-        }, 500);
+    // 淡出媒体内容
+    const content = player.querySelector('.tech-media-content');
+    if (content) {
+        content.style.transition = 'opacity 0.5s ease-in-out';
+        content.style.opacity = '0';
     }
     
-    // 清空媒体内容
+    // 短暂延迟后移除active类，触发整体淡出动画
     setTimeout(() => {
-        const content = player.querySelector('.tech-media-content');
-        if (content) content.innerHTML = '';
-    }, 500);
+        player.classList.remove('active');
+        
+        // 恢复数字人原始样式，但增加过渡动画时间
+        if (canvas.originalStyle) {
+            // 添加过渡动画
+            canvas.style.transition = 'all 0.8s ease-in-out';
+            
+            // 恢复原始样式
+            Object.keys(canvas.originalStyle).forEach(key => {
+                canvas.style[key] = canvas.originalStyle[key];
+            });
+            
+            // 动画结束后清除transition
+            setTimeout(() => {
+                canvas.style.transition = '';
+                delete canvas.originalStyle;
+            }, 800);
+        }
+        
+        // 清空媒体内容
+        setTimeout(() => {
+            if (content) content.innerHTML = '';
+        }, 500);
+    }, 300);
 }
 
 // 页面完全加载后的处理
@@ -2167,7 +2283,7 @@ async function getConfigOptions() {
 }
 
 function connectToOCServer() {
-    const wsUrl = `${window.wsProtocol}://${window.ocHost}/ws/client`;
+    const wsUrl = `ws://${window.ocHost}/ws/client`;
     // const wsUrl = `${window.wsProtocol}://${window.host}/ws/client`;
 
     console.log('有问题的ws链接:', wsUrl);

@@ -1233,15 +1233,15 @@
             left: 0;
             width: 100%;
             height: 100%;
+            background-color: transparent;
+            backdrop-filter: none;
+            z-index: 1005;
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 1005;
-            background-color: transparent;
-            backdrop-filter: none;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.5s ease;
+            transition: opacity 0.5s ease-in-out;
         }
         
         .tech-media-player.active {
@@ -1255,7 +1255,7 @@
             min-width: 300px;
             max-width: 1200px;
             transform: scale(0.5);
-            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease-in-out;
             box-shadow: 0 0 30px rgba(0, 180, 250, 0.5);
         }
         
@@ -1273,6 +1273,8 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
         }
         
         .tech-media-content img,
@@ -1280,6 +1282,7 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            transition: opacity 0.5s ease-in-out;
         }
         
         .tech-player-border {
@@ -1332,7 +1335,7 @@
             align-items: center;
             color: rgba(255, 255, 255, 0.8);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
             z-index: 10;
             padding: 0;
         }
@@ -1347,6 +1350,25 @@
             height: 24px;
             /* stroke: currentColor; */
             stroke-width: 2;
+        }
+        
+        /* 添加轮播过渡动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        .carousel-fade-in {
+            animation: fadeIn 0.5s ease-in-out forwards;
+        }
+        
+        .carousel-fade-out {
+            animation: fadeOut 0.5s ease-in-out forwards;
         }
 
         /* 用于数字人位置移动的动画 */

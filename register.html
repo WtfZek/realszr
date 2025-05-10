@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 数字人系统</title>
+    <link rel="stylesheet" href="static/css/login.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    
+    <div class="container">
+        <div class="form-container" id="register-form">
+            <div class="logo-container">
+                <img src="static/images/logo.png" alt="Logo" class="logo">
+                <h1>创建新账号</h1>
+            </div>
+            
+            <div class="form-group">
+                <div class="input-group">
+                    <i class="icon fas fa-user"></i>
+                    <input type="text" id="reg-username" placeholder="用户名" required>
+                </div>
+                <span class="error-message" id="reg-username-error"></span>
+            </div>
+            
+            <div class="form-group">
+                <div class="input-group">
+                    <i class="icon fas fa-envelope"></i>
+                    <input type="email" id="reg-email" placeholder="电子邮件" required>
+                </div>
+                <span class="error-message" id="reg-email-error"></span>
+            </div>
+            
+            <div class="form-group">
+                <div class="input-group">
+                    <i class="icon fas fa-lock"></i>
+                    <input type="password" id="reg-password" placeholder="密码" required>
+                    <i class="toggle-password fas fa-eye-slash" id="reg-toggle-password"></i>
+                </div>
+                <span class="error-message" id="reg-password-error"></span>
+            </div>
+            
+            <div class="form-group">
+                <div class="input-group">
+                    <i class="icon fas fa-lock"></i>
+                    <input type="password" id="reg-confirm-password" placeholder="确认密码" required>
+                </div>
+                <span class="error-message" id="reg-confirm-password-error"></span>
+            </div>
+            
+            <div class="form-options">
+                <div class="remember-me">
+                    <input type="checkbox" id="agree-terms">
+                    <label for="agree-terms">我同意所有条款和条件</label>
+                </div>
+            </div>
+            
+            <button type="button" id="register-button" class="btn btn-primary">注册</button>
+            
+            <div class="form-footer">
+                <p>已有账号? <a href="login.html" id="goto-login">立即登录</a></p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification">
+        <i class="icon"></i>
+        <span class="message"></span>
+    </div>
+    
+    <script src="static/js/login.js"></script>
+</body>
+</html> 

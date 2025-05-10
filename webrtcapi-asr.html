@@ -1677,6 +1677,8 @@
         打开语音识别页面
     </button>
 
+    
+
     <!-- &lt;!&ndash; 弹窗遮罩层 &ndash;&gt;-->
     <!-- <div id="modal-overlay"></div>-->
 
@@ -1976,14 +1978,14 @@
                             </div>
 
                             <!-- 第五行动态 -->
-                            <div class="bg-presets-row">
+                            <!-- <div class="bg-presets-row">
                                 <div class="bg-preset-item" data-bg-url="static\videos/outup.mp4">
                                     <video src="static\videos/outup.mp4" alt="未来科技竖屏3">
                                 </div>
                                 <div class="bg-preset-item" data-bg-url="static\videos/outup.mp4">
                                     <video src="static\videos/outup.mp4" alt="未来科技竖屏4">
                                 </div>
-                            </div>
+                            </div> -->
                         </div>
                     </div>
 
@@ -2525,7 +2527,7 @@
                         人脸检测
                     </div>
                     <!-- 人脸检测摄像头（移动到主体中，初始隐藏但不会自动隐藏） -->
-                    <div id="face-detection-container" style="display: none!important; position: fixed; top: 20px; right: 20px; z-index: 1010; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                    <div id="face-detection-container" style="display:none; position: fixed; top: 20px; right: 20px; z-index: 1010; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
                         <video id="face-video" width="320" height="240" autoplay muted style="transform: scaleX(-1);"></video>
                         <canvas id="face-canvas" width="320" height="240" style="position: absolute; top: 0; left: 0; transform: scaleX(-1);"></canvas>
                         <div id="face-status" style="position: absolute; bottom: 10px; left: 10px; color: white; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px;">等待检测...</div>

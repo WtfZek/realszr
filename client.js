@@ -90,11 +90,12 @@ function connectWebSocket(sessionid) {
                 const data = JSON.parse(event.data);
                 console.log('消息内容不为空，具体内容如下:');
                 console.log("event.data", data);
-                
+
                 // 处理媒体类型消息
-                if (data.type === 'video' || data.type === 'image') {
+                if (data.type === 'video' || data.type === 'image' || data.type === 'audio') {
                     // 使用handleMediaWebSocketMessage处理媒体消息，支持队列
-                    handleMediaWebSocketMessage(data);
+                    // handleMediaWebSocketMessage(data);
+                    showMediaInTechPlayerHandler(data);
                 } else if (data.type === 'text') {
                     try {
                         // 尝试解析JSON，看是否是特殊控制消息
@@ -188,24 +189,24 @@ function negotiate() {
             },
             method: 'POST'
         });
-        
+
         // 页面加载完成后获取下拉框选项
     }).then((response) => {
         return response.json();
     }).then((answer) => {
         const sessionId = answer.sessionid;
         document.getElementById('sessionid').value = sessionId;
-        
+
         // 使用返回的会话ID初始化ASR iframe
         initializeASRIframe(sessionId);
-        
+
         // 使用返回的有效sessionId建立WebSocket连接
         console.log(`从服务器获取到sessionId: ${sessionId}，开始建立WebSocket连接`);
         connectWebSocket(sessionId);
 
-        
+
         getConfigOptions();
-        
+
         return pc.setRemoteDescription(answer);
     }).catch((e) => {
         alert(e);
@@ -247,11 +248,11 @@ function start() {
                     // 设置局部变量
                     videoRatioWidth = videoElement.videoWidth;
                     videoRatioHeight = videoElement.videoHeight;
-                    
+
                     // 同时设置为全局变量，供HTML使用
                     window.videoRatioWidth = videoElement.videoWidth;
                     window.videoRatioHeight = videoElement.videoHeight;
-                    
+
                     console.log("视频原始尺寸:", videoRatioWidth, "x", videoRatioHeight);
                 }
 
@@ -265,35 +266,35 @@ function start() {
                 const mediaDivRect = mediaDiv.getBoundingClientRect();
                 const containerWidth = mediaDivRect.width;
                 const containerHeight = mediaDivRect.height;
-                
+
                 // 计算合适的canvas尺寸，确保不超出容器
                 let canvasWidth = customWidth && customWidth > 0 ? customWidth : videoElement.videoWidth;
                 let canvasHeight = customHeight && customHeight > 0 ? customHeight : videoElement.videoHeight;
-                
+
                 // 如果超出容器，进行缩放
                 if (canvasWidth > containerWidth * 0.9 || canvasHeight > containerHeight * 0.9) {
                     const scaleFactorW = (containerWidth * 0.9) / canvasWidth;
                     const scaleFactorH = (containerHeight * 0.9) / canvasHeight;
                     const scaleFactor = Math.min(scaleFactorW, scaleFactorH);
-                    
+
                     canvasWidth = Math.floor(canvasWidth * scaleFactor);
                     canvasHeight = Math.floor(canvasHeight * scaleFactor);
-                    
+
                     // 更新自定义尺寸，以便后续使用
                     customWidth = canvasWidth;
                     customHeight = canvasHeight;
-                    
+
                     // 更新滑块值
                     const customWidthSlider = document.getElementById('customWidthSlider');
                     const customWidthValue = document.getElementById('customWidthValue');
                     const customHeightSlider = document.getElementById('customHeightSlider');
                     const customHeightValue = document.getElementById('customHeightValue');
-                    
+
                     if (customWidthSlider && customWidthValue) {
                         customWidthSlider.value = canvasWidth;
                         customWidthValue.value = canvasWidth;
                     }
-                    
+
                     if (customHeightSlider && customHeightValue) {
                         customHeightSlider.value = canvasHeight;
                         customHeightValue.value = canvasHeight;
@@ -303,33 +304,33 @@ function start() {
                 // 设置 canvas 尺寸
                 canvas.width = canvasWidth;
                 canvas.height = canvasHeight;
-                
+
                 // 设置Canvas尺寸样式
                 canvas.style.width = canvasWidth + 'px';
                 canvas.style.height = canvasHeight + 'px';
-                
+
                 // 居中Canvas
                 const centerX = (containerWidth - canvasWidth) / 2;
                 const centerY = (containerHeight - canvasHeight) / 2;
                 canvas.style.left = centerX + 'px';
                 canvas.style.top = centerY + 'px';
-                
+
                 // 同步更新位置滑块
                 const xOffsetSlider = document.getElementById('xOffsetSlider');
                 const xOffsetValue = document.getElementById('xOffsetValue');
                 const yOffsetSlider = document.getElementById('yOffsetSlider');
                 const yOffsetValue = document.getElementById('yOffsetValue');
-                
+
                 if (xOffsetSlider && xOffsetValue) {
                     xOffsetSlider.value = centerX;
                     xOffsetValue.value = centerX;
                 }
-                
+
                 if (yOffsetSlider && yOffsetValue) {
                     yOffsetSlider.value = centerY;
                     yOffsetValue.value = centerY;
                 }
-                
+
                 console.log('Video loaded and canvas centered at:', centerX, centerY);
 
                 // 开始绘制视频帧
@@ -339,36 +340,36 @@ function start() {
             // 处理音频流，应用延迟
             const audioStream = evt.streams[0];
             const audioElement = document.getElementById('audio');
-            
+
             // 如果设置了音频延迟且大于0
             if (audioDelay > 0) {
                 console.log(`应用音频延迟: ${audioDelay}秒`);
                 // 创建音频上下文
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
+
                 // 创建源节点
                 const source = audioContext.createMediaStreamSource(audioStream);
-                
+
                 // 创建延迟节点
                 const delayNode = audioContext.createDelay(50); // 最大延迟时间50秒
                 delayNode.delayTime.value = audioDelay; // 延迟时间已经是秒为单位
-                
+
                 // 创建目标节点
                 const destination = audioContext.createMediaStreamDestination();
-                
+
                 // 连接节点
                 source.connect(delayNode);
                 delayNode.connect(destination);
-                
+
                 // 将处理后的流设置为音频元素的源
                 audioElement.srcObject = destination.stream;
-                
+
                 // 新增：为延迟后的音频流添加ASR处理
                 setupAudioRecognition(destination.stream);
             } else {
                 // 没有延迟，直接设置音频源
                 audioElement.srcObject = audioStream;
-                
+
                 // 新增：为原始音频流添加ASR处理
                 // setupAudioRecognition(audioStream);
             }
@@ -376,7 +377,7 @@ function start() {
     });
 
     document.getElementById('start').style.display = 'none';
-    
+
     document.getElementById('stop').style.display = 'inline-block';
 
     negotiate();
@@ -551,56 +552,56 @@ function adjustAudioDelay(newDelay) {
     // 更新延迟值（已转换为秒）
     const oldDelay = audioDelay;
     audioDelay = newDelay;
-    
+
     console.log(`音频延迟已设置为: ${audioDelay}秒`);
-    
+
     // 获取音频元素
     const audioElement = document.getElementById('audio');
     if (!audioElement || !audioElement.srcObject) {
         console.log("没有活动的音频流，设置将应用于下一次启动");
         return;
     }
-    
+
     try {
         // 是否正在播放
         const wasPlaying = !audioElement.paused;
-        
+
         // 记录当前时间
         const currentTime = audioElement.currentTime;
-        
+
         // 暂停当前音频
         audioElement.pause();
-        
+
         // 获取当前流
         const currentStream = audioElement.srcObject;
-        
+
         // 如果当前正在使用未处理的原始流，需创建新的音频上下文
         if (audioDelay > 0) {
             // 创建新的音频上下文
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
+
             // 检查是否有音轨可用
             if (currentStream.getAudioTracks && currentStream.getAudioTracks().length > 0) {
                 // 创建新的MediaStream，只包含音频轨道
                 const newStream = new MediaStream(currentStream.getAudioTracks());
                 const source = audioContext.createMediaStreamSource(newStream);
-                
+
                 // 创建延迟节点
                 const delayNode = audioContext.createDelay(50); // 最大延迟50秒
                 delayNode.delayTime.value = audioDelay; // 已确保是秒为单位
-                
+
                 // 创建目标节点
                 const destination = audioContext.createMediaStreamDestination();
-                
+
                 // 连接节点
                 source.connect(delayNode);
                 delayNode.connect(destination);
-                
+
                 // 更新音频元素的源
                 audioElement.srcObject = destination.stream;
             } else {
                 console.error("无法获取音频轨道，可能是一个已处理过的流");
-                
+
                 // 尝试重新从PC获取流
                 const pc = window.pc;
                 if (pc && pc.getReceivers) {
@@ -608,21 +609,21 @@ function adjustAudioDelay(newDelay) {
                     if (audioReceiver && audioReceiver.track) {
                         console.log("从PC重新获取原始音频流");
                         const stream = new MediaStream([audioReceiver.track]);
-                        
+
                         // 创建新的音频上下文
                         const newSource = audioContext.createMediaStreamSource(stream);
-                        
+
                         // 创建延迟节点
                         const newDelayNode = audioContext.createDelay(50);
                         newDelayNode.delayTime.value = audioDelay;
-                        
+
                         // 创建目标节点
                         const newDestination = audioContext.createMediaStreamDestination();
-                        
+
                         // 连接节点
                         newSource.connect(newDelayNode);
                         newDelayNode.connect(newDestination);
-                        
+
                         // 更新音频元素的源
                         audioElement.srcObject = newDestination.stream;
                     }
@@ -650,7 +651,7 @@ function adjustAudioDelay(newDelay) {
                 console.error("恢复原始流失败:", e);
             }
         }
-        
+
         // 如果之前在播放，继续播放
         if (wasPlaying) {
             audioElement.play().catch(e => console.error('重新播放失败:', e));
@@ -676,13 +677,13 @@ function stop() {
         videoElement.srcObject = null;
         videoElement.style.display = 'none';
     }
-    
+
     // 使用cleanupResources函数关闭连接和清理资源
     // 不保存会话数据，因为这是用户主动停止
     cleanupResources({ saveSessionData: false });
 
     disconnectFromServer();
-    
+
     // 不再需要下面的代码，因为cleanupResources已经处理了
     // // 关闭WebSocket连接
     // if (ws) {
@@ -773,7 +774,7 @@ function addChatMessage(message, position, isStreaming = false, type) {
     // 'left' 或 false 表示左侧消息（接收者）
     // 'right' 或 true 表示右侧消息（发送者）
     const isSender = position === 'right' || position === true;
-    
+
     // 首先尝试在当前文档中查找chat-content元素
     let chatContent = document.getElementById('chat-content');
     // 如果当前文档中没有找到，并且当前窗口是嵌入的，则尝试在父窗口中查找
@@ -786,17 +787,17 @@ function addChatMessage(message, position, isStreaming = false, type) {
             return; // 如果找不到聊天内容区域，直接返回
         }
     }
-    
+
     if (!chatContent) {
         console.error('无法找到chat-content元素，请确保正确设置了聊天框的ID');
         return;
     }
-    
+
     // 如果是用户发送的消息，记录时间戳并重置当前流ID
     if (isSender) {
         window.lastUserMessageTimestamp = Date.now();
         window.currentStreamingId = null; // 用户发送消息后，重置流ID，下一个系统消息将创建新的对话框
-        
+
         // 非流式消息，直接创建新的聊天项
         createNewChatItem(chatContent, message, isSender, false, type);
     } else {
@@ -805,7 +806,7 @@ function addChatMessage(message, position, isStreaming = false, type) {
             // 检查是否需要创建新的对话框
             const shouldCreateNewItem = shouldCreateNewChatItem();
             console.log('shouldCreateNewItem', shouldCreateNewItem);
-            
+
             if (shouldCreateNewItem) {
                 // 需要创建新对话框
                 const newItem = createNewChatItem(chatContent, message, isSender, true, type);
@@ -815,7 +816,7 @@ function addChatMessage(message, position, isStreaming = false, type) {
             } else {
                 // 查找最后一个匹配的流式聊天项
                 const lastChatItem = findLastStreamingChatItem(chatContent);
-                
+
                 if (lastChatItem) {
                     // 找到了流式聊天项，更新其内容
                     updateChatItemWithTypingEffect(lastChatItem, message);
@@ -834,7 +835,7 @@ function addChatMessage(message, position, isStreaming = false, type) {
             window.currentStreamingId = null;
         }
     }
-    
+
     // 将滚动条滚动到最底部
     chatContent.scrollTop = chatContent.scrollHeight;
 }
@@ -849,14 +850,14 @@ function shouldCreateNewChatItem() {
     if (!window.currentStreamingId) {
         return true;
     }
-    
+
     // 如果用户在短时间内发送了新消息，也需要创建新的聊天项
     // const timeSinceLastUserMessage = Date.now() - window.lastUserMessageTimestamp;
     // 如果用户在5秒内发送过消息，后续的系统消息应该创建新的聊天项
     // if (timeSinceLastUserMessage < 5000) {
     //     return true;
     // }
-    
+
     // 其他情况可以继续使用当前流
     return false;
 }
@@ -871,10 +872,10 @@ function findLastStreamingChatItem(chatContent) {
     if (!window.currentStreamingId) {
         return null;
     }
-    
+
     const chatItems = chatContent.querySelectorAll('.chat-item');
     if (chatItems.length === 0) return null;
-    
+
     // 从后向前查找匹配的聊天项
     for (let i = chatItems.length - 1; i >= 0; i--) {
         const item = chatItems[i];
@@ -886,7 +887,7 @@ function findLastStreamingChatItem(chatContent) {
             }
         }
     }
-    
+
     return null;
 }
 
@@ -900,15 +901,15 @@ function updateChatItemWithTypingEffect(chatItem, message) {
     // 找到消息容器（第一个div元素）
     const messageContainer = chatItem.querySelector('div:not(img)');
     if (!messageContainer) return;
-    
+
     // 获取当前已显示的文本
     const currentText = messageContainer.textContent || '';
-    
+
     // 如果新消息与当前文本的前缀相同，只添加新部分
     if (message.startsWith(currentText)) {
         const newPart = message.slice(currentText.length);
         if (!newPart) return; // 没有新内容
-        
+
         // 使用打字机效果添加新部分
         let index = 0;
         const typingInterval = setInterval(() => {
@@ -924,7 +925,7 @@ function updateChatItemWithTypingEffect(chatItem, message) {
         // 避免重复添加已有内容，尝试找出共同部分
         let commonPrefixLength = 0;
         const minLength = Math.min(currentText.length, message.length);
-        
+
         // 查找共同前缀的长度
         for (let i = 0; i < minLength; i++) {
             if (currentText[i] === message[i]) {
@@ -933,7 +934,7 @@ function updateChatItemWithTypingEffect(chatItem, message) {
                 break;
             }
         }
-        
+
         // 只追加新的部分
         const newContent = message.slice(commonPrefixLength);
         if (newContent) {
@@ -955,10 +956,10 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
-    
+
     // 标记流式消息状态
     chatItem.setAttribute('data-streaming', isStreaming ? 'true' : 'false');
-    
+
     // 使用 flex 布局让 avatar 和 messageContainer 处于同一行
     chatItem.style.display = 'flex';
     chatItem.style.alignItems = 'start'; // 垂直顶部对齐
@@ -1010,19 +1011,19 @@ function createNewChatItem(chatContent, message, isSender, isStreaming = false, 
         chatItem.style.justifyContent = 'flex-end'; // 发送者消息右对齐
         avatar.style.marginLeft = '10px'; // 发送者头像右侧间距
         avatar.style.marginRight = 0; // 移除发送者头像左侧间距
-        
+
         chatItem.appendChild(messageContainer);
         chatItem.appendChild(avatar);
     } else {
         chatItem.style.justifyContent = 'flex-start'; // 接收者消息左对齐
-        
+
         chatItem.appendChild(avatar);
         chatItem.appendChild(messageContainer);
     }
 
     // 添加到聊天内容区域
     chatContent.appendChild(chatItem);
-    
+
     return chatItem;
 }
 
@@ -1039,7 +1040,7 @@ function addChatMedia(mediaSource, mediaType, position, type) {
     // 'left' 或 false 表示左侧消息（接收者）
     // 'right' 或 true 表示右侧消息（发送者）
     const isSender = position === 'right' || position === true;
-    
+
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item');
     chatItem.classList.add(isSender ? 'sender' : 'receiver');
@@ -1078,7 +1079,7 @@ function addChatMedia(mediaSource, mediaType, position, type) {
             imgElement.style.maxWidth = '100%';
             imgElement.style.maxHeight = '200px';
             imgElement.style.borderRadius = '4px';
-            
+
             // 添加点击放大查看功能
             imgElement.style.cursor = 'pointer';
             imgElement.onclick = function() {
@@ -1093,24 +1094,24 @@ function addChatMedia(mediaSource, mediaType, position, type) {
                 fullImg.style.justifyContent = 'center';
                 fullImg.style.alignItems = 'center';
                 fullImg.style.zIndex = '9999';
-                
+
                 const img = document.createElement('img');
                 img.src = mediaSource;
                 img.style.maxWidth = '90%';
                 img.style.maxHeight = '90%';
                 img.style.objectFit = 'contain';
-                
+
                 fullImg.appendChild(img);
                 document.body.appendChild(fullImg);
-                
+
                 fullImg.onclick = function() {
                     document.body.removeChild(fullImg);
                 };
             };
-            
+
             messageContainer.appendChild(imgElement);
             break;
-            
+
         case 'audio':
             // 创建音频播放器元素
             const audioElement = document.createElement('audio');
@@ -1118,10 +1119,10 @@ function addChatMedia(mediaSource, mediaType, position, type) {
             audioElement.controls = true;
             audioElement.style.maxWidth = '100%';
             audioElement.style.borderRadius = '4px';
-            
+
             messageContainer.appendChild(audioElement);
             break;
-            
+
         case 'video':
             // 创建视频播放器元素
             const videoElement = document.createElement('video');
@@ -1130,32 +1131,32 @@ function addChatMedia(mediaSource, mediaType, position, type) {
             videoElement.style.maxWidth = '100%';
             videoElement.style.maxHeight = '200px';
             videoElement.style.borderRadius = '4px';
-            
+
             messageContainer.appendChild(videoElement);
             break;
-            
+
         case 'html':
             // 处理HTML内容
             const contentDiv = document.createElement('div');
             contentDiv.innerHTML = mediaSource;
             contentDiv.style.maxWidth = '100%';
-            
+
             // 安全处理：移除所有脚本标签
             const scripts = contentDiv.getElementsByTagName('script');
             for (let i = scripts.length - 1; i >= 0; i--) {
                 scripts[i].parentNode.removeChild(scripts[i]);
             }
-            
+
             // 确保所有链接在新窗口打开
             const links = contentDiv.getElementsByTagName('a');
             for (let i = 0; i < links.length; i++) {
                 links[i].setAttribute('target', '_blank');
                 links[i].setAttribute('rel', 'noopener noreferrer');
             }
-            
+
             messageContainer.appendChild(contentDiv);
             break;
-            
+
         default:
             // 默认处理为纯文本
             messageContainer.appendChild(document.createTextNode('不支持的媒体类型: ' + mediaType));
@@ -1205,28 +1206,28 @@ const echoForm = document.getElementById('echo-form');
 echoForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = document.getElementById('message').value;
-    
+
     if (!message.trim()) return; // 不发送空消息
-    
+
     // 将用户消息显示为右侧消息(发送者)，不使用流式处理
     // currentSystemMessageId = null;
     addChatMessage(message, 'right', false, 'text');
-    
+
     // 更新最后一次用户消息的时间戳
     window.lastUserMessageTimestamp = Date.now();
-    
+
     // 用户发送新消息后，强制重置当前流ID
     window.currentStreamingId = null;
-    
+
     console.log('发送消息:', message);
     console.log('sessionid:', document.getElementById('sessionid').value);
-    
+
     // 使用全局变量控制请求参数
     const messageType = window.messageType || 'chat';
     const interrupt = window.messageInterrupt !== undefined ? window.messageInterrupt : true;
-    
+
     console.log(`消息类型: ${messageType}, 打断: ${interrupt}`);
-    
+
     // 发送消息到服务器
     fetch(`${window.protocol}://${window.host}/human`, {
         body: JSON.stringify({
@@ -1240,20 +1241,20 @@ echoForm.addEventListener('submit', function(e) {
         },
         method: 'POST'
     })
-    .then(response => {
-        if (!response.ok) {
-            console.error('发送消息失败:', response.status);
+        .then(response => {
+            if (!response.ok) {
+                console.error('发送消息失败:', response.status);
+                // 可以在聊天窗口中添加错误提示
+                addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
+            }
+            return response.text().catch(() => null);
+        })
+        .catch(error => {
+            console.error('请求发生错误:', error);
             // 可以在聊天窗口中添加错误提示
-            addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
-        }
-        return response.text().catch(() => null);
-    })
-    .catch(error => {
-        console.error('请求发生错误:', error);
-        // 可以在聊天窗口中添加错误提示
-        addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
-    });
-    
+            addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
+        });
+
     // 开启检测数字人说话
     // startAudioSilenceDetection();
 
@@ -1261,9 +1262,9 @@ echoForm.addEventListener('submit', function(e) {
     // .then(response => response.json())
     // .then(data => console.log('请求成功:', data))
     // .catch(error => console.error('请求失败:', error));
-    
 
-    
+
+
     // 清空输入框
     document.getElementById('message').value = '';
 });
@@ -1273,7 +1274,7 @@ echoForm.addEventListener('submit', function(e) {
 //     onASRResult('这是一个模拟的语音识别结果');
 // }, 5000);
 
-            
+
 
 /**
  * 测试添加各种媒体消息的函数
@@ -1281,27 +1282,27 @@ echoForm.addEventListener('submit', function(e) {
 function testChatMedia() {
     // 测试图片消息 - 放在左侧
     addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 'left');
-    
+
     // 500毫秒后添加一个右侧的图片消息
     // setTimeout(() => {
     //     addChatMedia('https://fsai2025.oss-cn-shanghai.aliyuncs.com/upload/20250413/72cc239f0c8b7c6d71c1bb10da104d05.png', 'image', 'right');
     // }, 500);
-    
+
     // 测试音频消息 - 放在左侧
     setTimeout(() => {
         addChatMedia('https://www.w3schools.com/html/horse.mp3', 'audio', 'left');
     }, 1000);
-    
+
     // 测试音频消息 - 放在右侧
     // setTimeout(() => {
     //     addChatMedia('https://www.w3schools.com/html/horse.mp3', 'audio', 'right');
     // }, 1500);
-    
+
     // 测试视频消息 - 放在左侧
     setTimeout(() => {
         addChatMedia('https://www.w3schools.com/html/movie.mp4', 'video', 'left');
     }, 2000);
-    
+
 
     // 测试视频消息 - 放在左侧
     // setTimeout(() => {
@@ -1323,7 +1324,7 @@ function testChatMedia() {
         `;
         addChatMedia(htmlContent, 'html', 'left');
     }, 3000);
-    
+
     // 测试HTML内容 - 放在右侧
     // setTimeout(() => {
     //     const htmlContent = `
@@ -1361,74 +1362,74 @@ function startAudioSilenceDetection() {
         clearInterval(audioSilenceDetectionTimer);
         audioSilenceDetectionTimer = null;
     }
-    
+
     // 重置静音计数器
     silenceCounter = 0;
-    
+
     // 获取音频元素
     const audioElement = document.getElementById('audio');
     if (!audioElement || !audioElement.srcObject) {
         console.log("没有活动的音频流，无法检测静音");
         return;
     }
-    
+
     console.log("开始等待首次声音出现...");
-    
+
     // 创建音频分析器
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioContext.createAnalyser();
     const microphone = audioContext.createMediaStreamSource(audioElement.srcObject);
     microphone.connect(analyser);
-    
+
     analyser.fftSize = 256;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    
+
     // 首先创建一个检测器等待第一次有声音出现
     const waitForFirstSound = setInterval(() => {
         analyser.getByteFrequencyData(dataArray);
-        
+
         // 计算平均音量
         let sum = 0;
         for(let i = 0; i < bufferLength; i++) {
             sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        
+
         // 转换为分贝
         const db = 20 * Math.log10(average / 255);
-        
+
         console.log(`等待声音出现，当前音频分贝: ${db.toFixed(2)} dB`);
-        
+
         // 检查是否有声音(高于阈值)
         if (db >= silenceThreshold && !isNaN(db)) {
             console.log("检测到首次声音，开始正式监测静音状态");
             clearInterval(waitForFirstSound);
-            
+
             // 重置静音计数器
             silenceCounter = 0;
-            
+
             // 开始正式的静音检测
             audioSilenceDetectionTimer = setInterval(() => {
                 analyser.getByteFrequencyData(dataArray);
-                
+
                 // 计算平均音量
                 let sum = 0;
                 for(let i = 0; i < bufferLength; i++) {
                     sum += dataArray[i];
                 }
                 const average = sum / bufferLength;
-                
+
                 // 转换为分贝
                 const db = 20 * Math.log10(average / 255);
-                
+
                 console.log(`当前音频分贝: ${db.toFixed(2)} dB`);
-                
+
                 // 检查是否静音
                 if (db < silenceThreshold || isNaN(db)) {
                     silenceCounter++;
                     console.log(`检测到静音 ${silenceCounter}/${maxSilenceCount}`);
-                    
+
                     if (silenceCounter >= maxSilenceCount) {
                         console.log("检测到持续静音状态，自动关闭媒体播放器");
                         clearInterval(audioSilenceDetectionTimer);
@@ -1442,7 +1443,7 @@ function startAudioSilenceDetection() {
             }, 200); // 减少检测间隔，提高检测频率
         }
     }, 100); // 更高频率检测首次声音
-    
+
     // 保存检测器引用以便可以在停止函数中清除
     audioSilenceDetectionTimer = waitForFirstSound;
 }
@@ -1472,23 +1473,23 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
-    
+
     // 停止可能存在的音频检测
     stopAudioSilenceDetection();
-    
+
     // 重置视频播放状态跟踪
     videoPlayedAtLeastOnce = false;
     isMediaVideoType = type === 'video';
-    
+
     // 获取播放框和内容区域
     const player = document.getElementById('tech-media-player');
     const content = player.querySelector('.tech-media-content');
     const playerInner = player.querySelector('.tech-media-player-inner');
-    
+
     // 获取设置和对话模态框
     const settingsModal = document.getElementById('settings-modal');
     const chatModal = document.getElementById('chat-modal');
-    
+
     // 隐藏UI元素
     const autoHideElements = [
         document.getElementById('show-chat-modal'),
@@ -1496,25 +1497,25 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         document.getElementById('voice-recognition-button')
     ];
     const canvasStatus = document.getElementById('canvas-status');
-    
+
     // 隐藏所有UI元素
     autoHideElements.forEach(el => { if(el) el.style.opacity = 0; });
     if(canvasStatus) canvasStatus.style.opacity = 0;
-    
+
     // 关闭模态框
     if(settingsModal) settingsModal.style.display = 'none';
     if(chatModal) chatModal.style.display = 'none';
-    
+
     // 清空现有内容
     content.innerHTML = '';
-    
+
     // 获取数字人画布
     const canvas = document.getElementById('canvas');
     if (!canvas) {
         console.error('找不到数字人画布元素');
         return;
     }
-    
+
     // 创建媒体元素
     let mediaElement;
     if (type === 'image') {
@@ -1526,11 +1527,11 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         mediaElement.autoplay = true;
         mediaElement.controls = true;
         mediaElement.loop = isLoop; // 设置视频循环播放
-        
+
         // 添加视频播放结束事件监听器
         mediaElement.addEventListener('ended', function() {
             console.log('视频播放结束');
-            
+
             // 如果是队列处理模式，继续处理下一个媒体
             if (isProcessingMediaQueue) {
                 console.log('继续处理队列中的下一个媒体');
@@ -1545,31 +1546,31 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         console.error('不支持的媒体类型:', type);
         return;
     }
-    
+
     // 添加媒体元素到播放框
     content.appendChild(mediaElement);
-    
+
     // 当媒体加载完成后，设置尺寸和位置
     mediaElement.onload = mediaElement.onloadedmetadata = function() {
         // 获取原始媒体比例
         const mediaWidth = this.naturalWidth || this.videoWidth;
         const mediaHeight = this.naturalHeight || this.videoHeight;
         const aspectRatio = mediaWidth / mediaHeight;
-        
+
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
-        
+
         // 判断是否为小屏幕设备（宽度小于800px）
         const isSmallScreen = windowWidth < 800;
         console.log(`屏幕宽度: ${windowWidth}px, 是否小屏幕: ${isSmallScreen}`);
-        
+
         // 根据媒体比例设置播放框尺寸
         let playerWidth, playerHeight;
         if (aspectRatio >= 1) { // 宽大于或等于高（横版，包括正方形）
             // 宽度占屏幕的3/5，高度根据比例确定
             playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.6);
             playerHeight = playerWidth / aspectRatio;
-            
+
             // 检查高度是否超过屏幕高度（针对宽高比接近1:1的媒体）
             if (!isSmallScreen && aspectRatio <= 1.3 && playerHeight > windowHeight * 0.9) {
                 console.log(`宽高比接近1:1的媒体(${aspectRatio})，高度(${playerHeight})超过屏幕90%，重新计算尺寸`);
@@ -1579,24 +1580,24 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         } else { // 高大于宽（竖版）
             // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
             playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.9);
-            
+
             // 计算16:9比例的播放框宽度
             const playerAspectRatio = 16/9;
             playerWidth = playerHeight * (9/16);
-            
+
             // 如果播放框宽度超过窗口宽度的限制，则缩小高度
             if (playerWidth > windowWidth * (isSmallScreen ? 0.9 : 0.8)) {
                 playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.8);
                 playerHeight = playerWidth * (16/9);
             }
-            
+
             console.log(`竖版媒体：使用16:9播放框 ${playerWidth}x${playerHeight}`);
         }
-        
+
         // 设置播放框尺寸
         playerInner.style.width = `${playerWidth}px`;
         playerInner.style.height = `${playerHeight}px`;
-        
+
         // 设置媒体元素在播放框中居中并保持原始比例
         if (aspectRatio < 1) {
             // 计算图片实际显示尺寸，在播放框内保持原始比例
@@ -1610,26 +1611,26 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 imgWidth = mediaWidth;
                 imgHeight = mediaHeight;
             }
-            
+
             // 设置图片样式以在播放框中居中
             mediaElement.style.display = 'block';
             mediaElement.style.margin = '0 auto';
             mediaElement.style.height = `${imgHeight}px`;
             mediaElement.style.width = `${imgWidth}px`;
-            
+
             console.log(`竖版图片实际显示尺寸: ${imgWidth}x${imgHeight}`);
         }
-        
+
         // 设置播放框位置
         playerInner.style.position = 'absolute';
-        
+
         // 默认将数字人位置设为null
         let digitalHumanPosition = null;
-        
+
         if (isSmallScreen) {
             // 小屏幕设备
             let leftPosition;
-            
+
             // 对于竖图或竖视频(短视频)使用特殊的居中逻辑
             if (aspectRatio < 1) {
                 // 特殊计算方式
@@ -1640,17 +1641,17 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 leftPosition = (windowWidth - playerWidth) / 2;
                 console.log('小屏幕横版媒体：普通居中逻辑，左边距:', leftPosition);
             }
-            
+
             playerInner.style.left = `${leftPosition}px`;
             playerInner.style.right = 'auto'; // 确保right属性不会影响居中
             playerInner.style.top = '35px';
-            
+
             // 小屏幕下数字人居中放置
             digitalHumanPosition = null;
         } else {
             // 大屏幕下，始终使用左/右下角放置数字人
             let digitalHumanOnLeft = false;
-            
+
             // 根据位置模式设置数字人位置
             switch(window.digitalHumanPositionMode) {
                 case 1: // 始终左下角
@@ -1674,10 +1675,10 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                     console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
                     break;
             }
-            
+
             // 保存数字人位置，大屏幕下总是使用左/右
             digitalHumanPosition = digitalHumanOnLeft;
-            
+
             // 对于竖版图片(高>宽)，始终让播放框水平居中显示
             if (aspectRatio < 1) {
                 // 竖版图片，播放框居中显示
@@ -1710,18 +1711,18 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 }
             }
         }
-        
+
         // 添加active类以显示播放框
         player.classList.add('active');
-        
+
         // 使用moveDigitalHumanForMedia移动数字人到对应位置
         moveDigitalHumanForMedia(canvas, digitalHumanPosition);
     };
-    
+
     // 图片加载失败处理
     mediaElement.onerror = function() {
         console.error('媒体加载失败:', url);
-        
+
         // 如果是队列处理模式，继续处理下一个媒体
         if (isProcessingMediaQueue) {
             console.log('媒体加载失败，继续处理队列中的下一个媒体');
@@ -1730,7 +1731,7 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
             closeTechMediaPlayer();
         }
     };
-    
+
     // 如果是图片且不在队列处理模式，设置自动关闭定时器
     if (type === 'image' && displayTime > 0 && !isProcessingMediaQueue) {
         techPlayerAutoCloseTimer = setTimeout(function() {
@@ -1749,12 +1750,12 @@ function closeTechMediaPlayer() {
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
-    
+
     // 停止音频静音检测
     if (typeof stopAudioSilenceDetection === 'function') {
         stopAudioSilenceDetection();
     }
-    
+
     // 重置视频播放状态
     if (typeof videoPlayedAtLeastOnce !== 'undefined') {
         videoPlayedAtLeastOnce = false;
@@ -1762,12 +1763,12 @@ function closeTechMediaPlayer() {
     if (typeof isMediaVideoType !== 'undefined') {
         isMediaVideoType = false;
     }
-    
+
     // 如果当前是在处理队列，检查是否有下一个媒体需要处理
     if (isProcessingMediaQueue) {
         console.log('从队列中关闭媒体');
         currentlyPlayingMedia = null;
-        
+
         // 检查队列中是否还有媒体
         if (imageMediaQueue.length > 0 || videoMediaQueue.length > 0) {
             // 立即处理下一个，不需要真正关闭播放器
@@ -1780,32 +1781,32 @@ function closeTechMediaPlayer() {
             console.log('队列已清空，关闭播放器');
         }
     }
-    
+
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');
-    
+
     if (!player || !canvas) return;
-    
+
     // 移除active类，触发淡出动画
     player.classList.remove('active');
-    
+
     // 恢复数字人原始样式
     if (canvas.originalStyle) {
         // 添加过渡动画
         canvas.style.transition = 'all 0.5s ease-in-out';
-        
+
         // 恢复原始样式
         Object.keys(canvas.originalStyle).forEach(key => {
             canvas.style[key] = canvas.originalStyle[key];
         });
-        
+
         // 动画结束后清除transition
         setTimeout(() => {
             canvas.style.transition = '';
             delete canvas.originalStyle;
         }, 500);
     }
-    
+
     // 清空媒体内容
     setTimeout(() => {
         const content = player.querySelector('.tech-media-content');
@@ -1816,12 +1817,12 @@ function closeTechMediaPlayer() {
 // 页面完全加载后的处理
 window.onload = function() {
     console.log('Window 已完全加载');
-    
+
     // 为测试按钮添加事件监听器
     const testChatMediaButton = document.getElementById('test-chat-media');
     if (testChatMediaButton) {
         console.log('找到测试按钮，添加点击事件');
-        
+
         // 添加点击事件
         testChatMediaButton.addEventListener('click', function(e) {
             e.preventDefault();
@@ -1834,23 +1835,23 @@ window.onload = function() {
                     showChatModalButton.click();
                 }
             }
-            
+
             // 测试添加媒体消息
             testChatMedia();
         });
-        
+
         // 为移动设备添加触摸事件
         testChatMediaButton.addEventListener('touchstart', function(e) {
             e.preventDefault(); // 阻止默认行为
             console.log('触摸了测试按钮');
             testChatMediaButton.classList.add('active');
         });
-        
+
         testChatMediaButton.addEventListener('touchend', function(e) {
             e.preventDefault(); // 阻止默认行为
             console.log('触摸结束测试按钮');
             testChatMediaButton.classList.remove('active');
-            
+
             // 确保聊天对话框已打开
             const chatModal = document.getElementById('chat-modal');
             if (chatModal && window.getComputedStyle(chatModal).display === 'none') {
@@ -1859,12 +1860,12 @@ window.onload = function() {
                     showChatModalButton.click();
                 }
             }
-            
+
             // 测试添加媒体消息
             testChatMedia();
         });
     }
-    
+
     // 为测试媒体播放框按钮添加事件监听器
     const testMediaPlayerBtn = document.getElementById('test-media-player-btn');
     if (testMediaPlayerBtn) {
@@ -1874,14 +1875,14 @@ window.onload = function() {
             console.log('点击了测试媒体播放框按钮');
             testMediaPlayer(); // 调用封装后的函数
         });
-        
+
         // 为移动设备添加触摸事件
         testMediaPlayerBtn.addEventListener('touchstart', function(e) {
             e.preventDefault(); // 阻止默认行为
             console.log('触摸了测试媒体按钮');
             testMediaPlayerBtn.classList.add('active');
         });
-        
+
         testMediaPlayerBtn.addEventListener('touchend', function(e) {
             e.preventDefault(); // 阻止默认行为
             console.log('触摸结束测试媒体按钮');
@@ -1889,13 +1890,13 @@ window.onload = function() {
             testMediaPlayer(); // 调用封装后的函数
         });
     }
-    
+
     // 为媒体播放框关闭按钮添加事件监听器
     const techPlayerCloseBtn = document.querySelector('.tech-player-close');
     if (techPlayerCloseBtn) {
         techPlayerCloseBtn.addEventListener('click', closeTechMediaPlayer);
     }
-    
+
     // 尝试查找聊天内容容器
     const chatContent = document.getElementById('chat-content');
     if (chatContent) {
@@ -1925,19 +1926,19 @@ window.onload = function() {
 //         console.log('收到空的ASR结果，跳过处理');
 //         return;
 //     }
-    
+
 //     // 将识别结果作为右侧消息显示（用户说的话）
 //     // currentSystemMessageId = null;
 //     addChatMessage(result, 'right', false);
-    
+
 //     // 更新最后一次用户消息的时间戳
 //     window.lastUserMessageTimestamp = Date.now();
-    
+
 //     // 用户发送新消息后，强制重置当前流ID
 //     window.currentStreamingId = null;
-    
+
 //     console.log('发送ASR识别结果:', result);
-    
+
 //     // 语音识别结果也发送到服务器
 //     const sessionId = parseInt(document.getElementById('sessionid').value);
 //     fetch('http://192.168.3.100:8018/human', {
@@ -1961,37 +1962,37 @@ window.onload = function() {
 function setupAudioRecognition(audioStream) {
     try {
         console.log("设置数字人音频识别功能");
-        
+
         // 创建音频上下文
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
+
         // 创建源节点
         const source = audioContext.createMediaStreamSource(audioStream);
-        
+
         // 创建分析器节点用于实时获取音频数据
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
-        
+
         // 创建脚本处理器节点以处理音频数据
         const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-        
+
         // 连接节点
         source.connect(analyser);
         analyser.connect(scriptProcessor);
         scriptProcessor.connect(audioContext.destination);
-        
+
         // 通过ScriptProcessor获取音频数据并发送到ASR iframe
         scriptProcessor.onaudioprocess = function(audioProcessingEvent) {
             const inputBuffer = audioProcessingEvent.inputBuffer;
             const inputData = inputBuffer.getChannelData(0);
-            
+
             // 转换为Int16Array以便ASR处理
             const int16Data = new Int16Array(inputData.length);
             for (let i = 0; i < inputData.length; i++) {
                 // 将[-1,1]的float值转换为[-32768,32767]的int16值
                 int16Data[i] = Math.max(-32768, Math.min(32767, Math.floor(inputData[i] * 32767)));
             }
-            
+
             // 获取ASR iframe并发送数据
             const asrIframe = document.querySelector('#asr-iframe');
             if (asrIframe && asrIframe.contentWindow) {
@@ -2001,7 +2002,7 @@ function setupAudioRecognition(audioStream) {
                 }, '*');
             }
         };
-        
+
         console.log("数字人音频识别设置完成");
     } catch (e) {
         console.error("设置数字人音频识别失败:", e);
@@ -2012,7 +2013,7 @@ function setupAudioRecognition(audioStream) {
 window.addEventListener('message', function(event) {
     // 校验消息来源和类型
     if (!event.data || typeof event.data !== 'object') return;
-    
+
     // 处理重置流ID的消息
     if (event.data.type === 'reset_streaming_id' && event.data.source === 'asr_iframe') {
         console.log('收到ASR iframe发来的重置流ID消息');
@@ -2021,7 +2022,7 @@ window.addEventListener('message', function(event) {
         window.lastUserMessageTimestamp = Date.now(); // 更新最后用户消息时间戳
         console.log('已重置window.currentStreamingId和更新window.lastUserMessageTimestamp');
     }
-    
+
     // 处理来自ASR框架的其他消息
     if (event.data.type === 'digital_human_audio') {
         // 处理数字人音频数据...
@@ -2047,17 +2048,17 @@ function initializeASRIframe(sessionId) {
 
     // 设置会话ID
     asrSessionId = sessionId;
-    
+
     // 获取ASR iframe
     asrIframe = document.getElementById('asr-iframe');
     if (!asrIframe) {
         console.error('找不到ASR iframe元素');
         return;
     }
-    
+
     // 设置iframe事件监听
     window.addEventListener('message', handleASRIframeMessage);
-    
+
     // 检查iframe是否已准备好
     if (asrIframeReady) {
         sendSessionIdToASRIframe(sessionId);
@@ -2073,20 +2074,20 @@ function initializeASRIframe(sessionId) {
 function handleASRIframeMessage(event) {
     // 可以根据需要验证消息来源
     // if (event.origin !== expectedOrigin) return;
-    
+
     if (!event.data || !event.data.type) return;
-    
+
     switch (event.data.type) {
         case 'asr_iframe_ready':
             console.log('ASR iframe已准备就绪');
             asrIframeReady = true;
-            
+
             // 如果已有会话ID，发送给iframe
             if (asrSessionId) {
                 sendSessionIdToASRIframe(asrSessionId);
             }
             break;
-            
+
         case 'asr_result':
             // 处理ASR结果
             console.log('收到ASR结果:', event.data.text);
@@ -2094,19 +2095,19 @@ function handleASRIframeMessage(event) {
                 onASRResult(event.data.text);
             }
             break;
-            
+
         case 'asr_ws_connected':
             console.log(`ASR WebSocket已连接，sessionId: ${event.data.sessionId}`);
             break;
-            
+
         case 'asr_ws_disconnected':
             console.log(`ASR WebSocket已断开，sessionId: ${event.data.sessionId}, 代码: ${event.data.code}`);
             break;
-            
+
         case 'asr_ws_error':
             console.error(`ASR WebSocket错误，sessionId: ${event.data.sessionId}, 错误: ${event.data.error}`);
             break;
-            
+
         case 'digital_human_asr_ready':
             console.log('数字人ASR处理模块已准备就绪');
             break;
@@ -2122,7 +2123,7 @@ function sendSessionIdToASRIframe(sessionId) {
         console.error('ASR iframe不可用，无法发送会话ID');
         return;
     }
-    
+
     try {
         asrIframe.contentWindow.postMessage({
             type: 'set_session_id',
@@ -2144,13 +2145,13 @@ function sendControlToASRIframe(action, params = {}) {
         console.error('ASR iframe不可用，无法发送控制命令');
         return;
     }
-    
+
     try {
         const message = {
             type: `asr_${action}`,
             ...params
         };
-        
+
         asrIframe.contentWindow.postMessage(message, '*');
         console.log(`已向ASR iframe发送控制命令: ${action}`, params);
     } catch (e) {
@@ -2168,7 +2169,7 @@ window.addEventListener('beforeunload', function(event) {
         event.returnValue = message;  // 兼容 Chrome
         return message;  // 兼容 Firefox
     }
-    
+
     // 无论如何都执行资源清理
     cleanupResources();
 });
@@ -2182,7 +2183,7 @@ window.addEventListener('unload', function() {
 function cleanupResources(options = {}) {
     console.log('执行资源清理...');
     const { saveSessionData = false } = options;
-    
+
     // 保存会话数据（如果需要）
     if (saveSessionData) {
         try {
@@ -2191,7 +2192,7 @@ function cleanupResources(options = {}) {
                 timestamp: new Date().toISOString(),
                 messages: []
             };
-            
+
             // 获取聊天内容
             const chatContent = document.getElementById('chat-content');
             if (chatContent) {
@@ -2201,14 +2202,14 @@ function cleanupResources(options = {}) {
                     const isSender = item.classList.contains('sender');
                     const messageDiv = item.querySelector('div:not(img)');
                     const message = messageDiv ? messageDiv.textContent : '';
-                    
+
                     sessionData.messages.push({
                         text: message,
                         isSender
                     });
                 });
             }
-            
+
             // 将会话数据保存到localStorage
             localStorage.setItem('lastSessionData', JSON.stringify(sessionData));
             console.log('会话数据已保存到localStorage');
@@ -2216,7 +2217,7 @@ function cleanupResources(options = {}) {
             console.error('保存会话数据失败:', e);
         }
     }
-    
+
     // 关闭WebSocket连接
     if (ws && isWebSocketConnected) {
         console.log('正在关闭WebSocket连接...');
@@ -2227,7 +2228,7 @@ function cleanupResources(options = {}) {
             console.error('关闭WebSocket连接时出错:', e);
         }
     }
-    
+
     // 关闭WebRTC连接
     if (pc) {
         console.log('正在关闭WebRTC连接...');
@@ -2238,7 +2239,7 @@ function cleanupResources(options = {}) {
                 tracks.forEach(track => track.stop());
                 videoElement.srcObject = null;
             }
-            
+
             // 关闭音频元素
             const audioElement = document.getElementById('audio');
             if (audioElement && audioElement.srcObject) {
@@ -2246,7 +2247,7 @@ function cleanupResources(options = {}) {
                 tracks.forEach(track => track.stop());
                 audioElement.srcObject = null;
             }
-            
+
             // 关闭对等连接
             pc.close();
             console.log('WebRTC连接已关闭');
@@ -2254,7 +2255,7 @@ function cleanupResources(options = {}) {
             console.error('关闭WebRTC连接时出错:', e);
         }
     }
-    
+
     console.log('资源清理完成');
     return true;
 }
@@ -2301,27 +2302,27 @@ function connectToOCServer() {
     // const wsUrl = `${window.wsProtocol}://${window.host}/ws/client`;
 
     console.log('有问题的ws链接:', wsUrl);
-    
+
     // 关闭现有连接
     if (originControllerSocket && originControllerSocket.readyState === WebSocket.OPEN) {
         originControllerSocket.close();
     }
-    
+
     originControllerSocket = new WebSocket(wsUrl);
 
     const statusElement = document.getElementById('info_div');
-    
+
     originControllerSocket.onopen = () => {
         // addMessage('系统', '正在连接到服务器...', 'system');
         statusElement.textContent = '状态: 正在连接...';
         // statusElement.className = 'status';
     };
-    
+
     originControllerSocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
         console.log("收到的远控ws消息：", data);
-        
+
         if (data.type === 'connected') {
             clientId = data.client_id;
             console.log('已连接到服务器，客户机ID:', clientId);
@@ -2337,52 +2338,55 @@ function connectToOCServer() {
             let newType = window.messageType;
             if (data.new_type === 'echo' || data.new_type === 'chat') {
                 newType = data.new_type;
+                // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
+                // statusElement.textContent = `用户yi ${data.user_id}: ${data.message}`;
+
+                // console.log("data.message",data.message)
+
+                addChatMessage(data.message, 'right', false, 'audio');
+
+                // 更新最后一次用户消息的时间戳
+                window.lastUserMessageTimestamp = Date.now();
+
+                // 用户发送新消息后，强制重置当前流ID
+                window.currentStreamingId = null;
+
+                console.log('发送消息:', message);
+                console.log('sessionid:', document.getElementById('sessionid').value);
+
+                // 发送消息到服务器
+                fetch(`${window.protocol}://${window.host}/human`, {
+                    body: JSON.stringify({
+                        text: data.message,
+                        type: newType,
+                        interrupt: window.messageInterrupt,
+                        sessionid: parseInt(document.getElementById('sessionid').value),
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    method: 'POST'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            console.error('发送消息失败:', response.status);
+                            // 可以在聊天窗口中添加错误提示
+                            addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
+                        }
+                        return response.text().catch(() => null);
+                    })
+                    .catch(error => {
+                        console.error('请求发生错误:', error);
+                        // 可以在聊天窗口中添加错误提示
+                        addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
+                    });
+            } else if (data.new_type === 'video' || data.new_type === 'image' || data.new_type === 'audio') {
+                console.log("传来媒体数据")
+                showMediaInTechPlayerOCHandler(data);
             }
-            // addMessage(`用户 ${data.user_id}`, data.message, 'user-message');
-            // statusElement.textContent = `用户yi ${data.user_id}: ${data.message}`;
-
-            // console.log("data.message",data.message)
-
-            addChatMessage(data.message, 'right', false, 'audio');
-
-            // 更新最后一次用户消息的时间戳
-            window.lastUserMessageTimestamp = Date.now();
-
-            // 用户发送新消息后，强制重置当前流ID
-            window.currentStreamingId = null;
-
-            console.log('发送消息:', message);
-            console.log('sessionid:', document.getElementById('sessionid').value);
-
-            // 发送消息到服务器
-            fetch(`${window.protocol}://${window.host}/human`, {
-                body: JSON.stringify({
-                    text: data.message,
-                    type: newType,
-                    interrupt: window.messageInterrupt,
-                    sessionid: parseInt(document.getElementById('sessionid').value),
-                }),
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                method: 'POST'
-            })
-            .then(response => {
-                if (!response.ok) {
-                    console.error('发送消息失败:', response.status);
-                    // 可以在聊天窗口中添加错误提示
-                    addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
-                }
-                return response.text().catch(() => null);
-            })
-            .catch(error => {
-                console.error('请求发生错误:', error);
-                // 可以在聊天窗口中添加错误提示
-                addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
-            });
         }
     };
-    
+
     originControllerSocket.onclose = () => {
         // addMessage('系统', '与服务器的连接已关闭', 'system');
         statusElement.textContent = '状态: 未连接';
@@ -2390,7 +2394,7 @@ function connectToOCServer() {
         // clientIdElement.textContent = '未分配';
         clientId = null;
     };
-    
+
     originControllerSocket.onerror = (error) => {
         // addMessage('系统', '连接错误', 'system');
         statusElement.textContent = '状态: 连接错误';
@@ -2431,36 +2435,36 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         console.error('URL不能为空');
         return;
     }
-    
+
     // 确保displayTime为有效数字
     displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
-    
+
     // 检查媒体类型有效性
     if (type !== 'image' && type !== 'video') {
         console.warn(`不支持的媒体类型: ${type}，默认使用image`);
         type = 'image';
     }
-    
+
     // 检查当前是否没有媒体在展示和排队
-    const noActiveMedia = !isProcessingMediaQueue && 
-                        imageMediaQueue.length === 0 && 
-                        videoMediaQueue.length === 0 && 
-                        !document.querySelector('#tech-media-player.active');
-    
+    const noActiveMedia = !isProcessingMediaQueue &&
+        imageMediaQueue.length === 0 &&
+        videoMediaQueue.length === 0 &&
+        !document.querySelector('#tech-media-player.active');
+
     // 判断是单个URL、数组还是对象
     if (Array.isArray(url)) {
         console.log('接收到媒体数组，添加到队列');
-        
+
         // 如果数组为空，直接返回
         if (url.length === 0) {
             console.warn('传入的媒体数组为空');
             return;
         }
-        
+
         // 清空现有队列
         imageMediaQueue = [];
         videoMediaQueue = [];
-        
+
         // 检查数组中的内容类型
         url.forEach(item => {
             if (typeof item === 'string') {
@@ -2471,7 +2475,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
                 const itemType = item.type || type;
                 const itemUrl = item.url || item.src || '';
                 const itemDisplayTime = item.displayTime || displayTime;
-                
+
                 if (itemUrl) {
                     addMediaToQueue(itemUrl, itemType, itemDisplayTime);
                 } else {
@@ -2481,7 +2485,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
                 console.warn('忽略无效的媒体项:', item);
             }
         });
-        
+
         // 立即开始处理，不等待
         if (queueProcessingTimer) {
             clearTimeout(queueProcessingTimer);
@@ -2492,7 +2496,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         const mediaUrl = url.url || url.src;
         const mediaType = url.type || type;
         const mediaDisplayTime = url.displayTime || displayTime;
-        
+
         // 如果当前没有媒体在展示和排队，直接显示而不使用队列
         if (noActiveMedia) {
             console.log(`当前无媒体展示，单个${mediaType}配置对象直接播放: ${mediaUrl}`);
@@ -2511,7 +2515,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         }
     } else {
         // 单个URL字符串
-        
+
         // 如果当前没有媒体在展示和排队，直接显示而不使用队列
         if (noActiveMedia) {
             console.log(`当前无媒体展示，单个${type}直接播放: ${url}`);
@@ -2543,15 +2547,15 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
         console.error('找不到media容器元素');
         return;
     }
-    
+
     const mediaDivRect = mediaDiv.getBoundingClientRect();
     const canvasWidth = canvas.offsetWidth;
     const canvasHeight = canvas.offsetHeight;
     const windowWidth = window.innerWidth;
-    
+
     // 判断是否为小屏幕设备
     const isSmallScreen = windowWidth < 800;
-    
+
     // 首先保存原始样式，方便还原
     if (!canvas.originalStyle) {
         canvas.originalStyle = {
@@ -2564,7 +2568,7 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
             zIndex: canvas.style.zIndex
         };
     }
-    
+
     // 使用哪个宽度取决于是否是小屏幕
     let targetWidth;
     if (isSmallScreen) {
@@ -2576,14 +2580,14 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
         targetWidth = window.digitalHumanWidth;
         console.log(`大屏幕：使用固定宽度 ${targetWidth}px (来自digitalHumanWidthSlider设置)`);
     }
-    
+
     // 保持原始宽高比
     const aspectRatio = canvasWidth / canvasHeight;
     const targetHeight = targetWidth / aspectRatio;
-    
+
     // 根据屏幕大小和位置计算具体坐标
     let left, top;
-    
+
     if (isSmallScreen) {
         // 小屏幕：数字人底部居中
         left = (windowWidth - targetWidth) / 2;
@@ -2608,7 +2612,7 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
             console.log(`数字人放置在右下角，宽度=${targetWidth}px, 边距=20px`);
         }
     }
-    
+
     // 应用样式变化
     canvas.style.position = 'absolute';
     canvas.style.zIndex = '1000';
@@ -2626,24 +2630,24 @@ function moveDigitalHumanForMedia(canvas, digitalHumanOnLeft) {
  */
 function testMediaPlayer() {
     console.log('测试媒体播放器功能');
-    
+
     // 随机决定测试单个媒体还是队列
     const isQueue = Math.random() > 0.5;
-    
+
     if (isQueue) {
         // 测试媒体队列
         console.log('测试媒体队列播放');
-        
+
         // 随机决定是图片队列还是视频队列
         const isVideoQueue = Math.random() > 0.5;
-        
+
         if (isVideoQueue) {
             // 测试视频队列
             console.log('测试视频队列');
             const videoUrls = [
                 './static/videos/outup.mp4',
                 './static/videos/outup.mp4',
-                './static/videos/outup.mp4'
+                // './static/videos/outup.mp4'
             ];
             window.showMediaContentInPlayer(videoUrls, 'video');
             console.log('视频队列将自动播放并切换');
@@ -2652,7 +2656,7 @@ function testMediaPlayer() {
             console.log('测试图片队列');
             const imageUrls = [
                 './static/images/test/wttpssr.png',
-                './static/images/test/wttp.png'
+                './static/images/sz-bg9.png'
             ];
             window.showMediaContentInPlayer(imageUrls, 'image', 3); // 每张图片显示3秒
             console.log('图片队列将每3秒自动切换');
@@ -2660,10 +2664,10 @@ function testMediaPlayer() {
     } else {
         // 测试单个媒体
         console.log('测试单个媒体播放');
-        
+
         // 随机选择图片或视频进行测试
         const isVideo = Math.random() > 0.5;
-        
+
         if (isVideo) {
             // 测试视频
             window.showMediaContentInPlayer('./static/videos/outup.mp4', 'video');
@@ -2701,13 +2705,13 @@ function addMediaToQueue(media, type = 'image', displayTime = 5) {
         console.error('无效的媒体参数');
         return;
     }
-    
+
     // 验证媒体类型
     if (type !== 'image' && type !== 'video') {
         console.warn(`不支持的媒体类型: ${type}，默认使用image`);
         type = 'image';
     }
-    
+
     // 将媒体信息规范化为对象形式
     let mediaObj;
     if (typeof media === 'string') {
@@ -2725,7 +2729,7 @@ function addMediaToQueue(media, type = 'image', displayTime = 5) {
             displayTime: media.displayTime || (mediaType === 'image' ? displayTime : 0),
             type: mediaType
         };
-        
+
         // 检查URL是否有效
         if (!mediaObj.url) {
             console.error('媒体对象缺少有效的URL');
@@ -2735,16 +2739,16 @@ function addMediaToQueue(media, type = 'image', displayTime = 5) {
         console.error('无效的媒体参数类型');
         return;
     }
-    
+
     console.log(`添加${mediaObj.type}到队列:`, mediaObj.url);
-    
+
     // 根据类型添加到对应队列
     if (mediaObj.type === 'image') {
         imageMediaQueue.push(mediaObj);
     } else if (mediaObj.type === 'video') {
         videoMediaQueue.push(mediaObj);
     }
-    
+
     // 重置队列处理计时器
     resetQueueProcessingTimer();
 }
@@ -2758,7 +2762,7 @@ function resetQueueProcessingTimer() {
         clearTimeout(queueProcessingTimer);
         queueProcessingTimer = null;
     }
-    
+
     // 设置新计时器，等待queueWaitTime后开始处理队列
     queueProcessingTimer = setTimeout(processMediaQueues, queueWaitTime);
     console.log(`队列处理计时器已重置，${queueWaitTime/1000}秒后开始处理队列`);
@@ -2773,20 +2777,20 @@ function processMediaQueues() {
         clearTimeout(queueProcessingTimer);
         queueProcessingTimer = null;
     }
-    
+
     // 如果正在处理队列或两个队列都为空，则直接返回
     if (isProcessingMediaQueue || (imageMediaQueue.length === 0 && videoMediaQueue.length === 0)) {
         console.log("没有需要处理的媒体或队列正在处理中");
         return;
     }
-    
+
     console.log("开始处理媒体队列");
     isProcessingMediaQueue = true;
-    
+
     // 检查队列中的媒体项数量
     const totalMediaItems = imageMediaQueue.length + videoMediaQueue.length;
     console.log(`队列中共有 ${totalMediaItems} 个媒体项待处理`);
-    
+
     // 开始处理第一个媒体项
     processNextMedia();
 }
@@ -2799,7 +2803,7 @@ function processNextMedia() {
     if (imageMediaQueue.length === 0 && videoMediaQueue.length === 0) {
         console.log("所有媒体队列处理完毕");
         isProcessingMediaQueue = false;
-        
+
         // 如果当前正在显示的是图片，并且没有更多媒体，设置一个计时器在displayTime后关闭播放器
         if (currentlyPlayingMedia && currentlyPlayingMedia.type === 'image') {
             console.log("队列为空，当前显示的是图片，设置关闭计时器");
@@ -2813,25 +2817,25 @@ function processNextMedia() {
         }
         return;
     }
-    
+
     let mediaToProcess;
     let mediaType;
-    
+
     // 优先处理图片队列
     if (imageMediaQueue.length > 0) {
         mediaToProcess = imageMediaQueue.shift();
         mediaType = 'image';
-    } 
+    }
     // 然后处理视频队列
     else if (videoMediaQueue.length > 0) {
         mediaToProcess = videoMediaQueue.shift();
         mediaType = 'video';
     }
-    
+
     if (mediaToProcess) {
         // 检查mediaToProcess是否是对象，如果是则提取URL、类型和显示时间
         let url, displayTime;
-        
+
         if (typeof mediaToProcess === 'string') {
             url = mediaToProcess;
             displayTime = mediaType === 'image' ? 5 : 0; // 默认图片显示5秒
@@ -2848,29 +2852,29 @@ function processNextMedia() {
             setTimeout(processNextMedia, 100);
             return;
         }
-        
+
         console.log(`处理${mediaType}: ${url}, 显示时间: ${displayTime}秒`);
         currentlyPlayingMedia = { url, type: mediaType, displayTime };
-        
+
         // 展示媒体
         showMediaInTechPlayer(
-            url, 
-            mediaType, 
+            url,
+            mediaType,
             displayTime,
             undefined,  // alignLeft - 使用默认行为
             false       // isLoop - 不循环播放
         );
-        
+
         // 为图片设置超时处理
         if (mediaType === 'image' && displayTime > 0) {
             // 检查是否还有其他媒体在队列中
             const hasMoreMedia = imageMediaQueue.length > 0 || videoMediaQueue.length > 0;
-            
+
             if (techPlayerAutoCloseTimer) {
                 clearTimeout(techPlayerAutoCloseTimer);
                 techPlayerAutoCloseTimer = null;
             }
-            
+
             techPlayerAutoCloseTimer = setTimeout(() => {
                 console.log(`图片${url}显示时间到，${hasMoreMedia ? '准备处理下一个媒体' : '准备关闭播放器'}`);
                 processNextMedia(); // 处理下一个媒体或关闭播放器
@@ -2897,23 +2901,23 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
-    
+
     // 停止可能存在的音频检测
     stopAudioSilenceDetection();
-    
+
     // 重置视频播放状态跟踪
     videoPlayedAtLeastOnce = false;
     isMediaVideoType = type === 'video';
-    
+
     // 获取播放框和内容区域
     const player = document.getElementById('tech-media-player');
     const content = player.querySelector('.tech-media-content');
     const playerInner = player.querySelector('.tech-media-player-inner');
-    
+
     // 获取设置和对话模态框
     const settingsModal = document.getElementById('settings-modal');
     const chatModal = document.getElementById('chat-modal');
-    
+
     // 隐藏UI元素
     const autoHideElements = [
         document.getElementById('show-chat-modal'),
@@ -2921,25 +2925,25 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         document.getElementById('voice-recognition-button')
     ];
     const canvasStatus = document.getElementById('canvas-status');
-    
+
     // 隐藏所有UI元素
     autoHideElements.forEach(el => { if(el) el.style.opacity = 0; });
     if(canvasStatus) canvasStatus.style.opacity = 0;
-    
+
     // 关闭模态框
     if(settingsModal) settingsModal.style.display = 'none';
     if(chatModal) chatModal.style.display = 'none';
-    
+
     // 清空现有内容
     content.innerHTML = '';
-    
+
     // 获取数字人画布
     const canvas = document.getElementById('canvas');
     if (!canvas) {
         console.error('找不到数字人画布元素');
         return;
     }
-    
+
     // 创建媒体元素
     let mediaElement;
     if (type === 'image') {
@@ -2951,11 +2955,11 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         mediaElement.autoplay = true;
         mediaElement.controls = true;
         mediaElement.loop = isLoop; // 设置视频循环播放
-        
+
         // 添加视频播放结束事件监听器
         mediaElement.addEventListener('ended', function() {
             console.log('视频播放结束');
-            
+
             // 如果是队列处理模式，继续处理下一个媒体
             if (isProcessingMediaQueue) {
                 console.log('继续处理队列中的下一个媒体');
@@ -2970,31 +2974,31 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         console.error('不支持的媒体类型:', type);
         return;
     }
-    
+
     // 添加媒体元素到播放框
     content.appendChild(mediaElement);
-    
+
     // 当媒体加载完成后，设置尺寸和位置
     mediaElement.onload = mediaElement.onloadedmetadata = function() {
         // 获取原始媒体比例
         const mediaWidth = this.naturalWidth || this.videoWidth;
         const mediaHeight = this.naturalHeight || this.videoHeight;
         const aspectRatio = mediaWidth / mediaHeight;
-        
+
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
-        
+
         // 判断是否为小屏幕设备（宽度小于800px）
         const isSmallScreen = windowWidth < 800;
         console.log(`屏幕宽度: ${windowWidth}px, 是否小屏幕: ${isSmallScreen}`);
-        
+
         // 根据媒体比例设置播放框尺寸
         let playerWidth, playerHeight;
         if (aspectRatio >= 1) { // 宽大于或等于高（横版，包括正方形）
             // 宽度占屏幕的3/5，高度根据比例确定
             playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.6);
             playerHeight = playerWidth / aspectRatio;
-            
+
             // 检查高度是否超过屏幕高度（针对宽高比接近1:1的媒体）
             if (!isSmallScreen && aspectRatio <= 1.3 && playerHeight > windowHeight * 0.9) {
                 console.log(`宽高比接近1:1的媒体(${aspectRatio})，高度(${playerHeight})超过屏幕90%，重新计算尺寸`);
@@ -3004,24 +3008,24 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
         } else { // 高大于宽（竖版）
             // 对于竖版图片，使用16:9的播放框比例，保持与视频一致的体验
             playerHeight = windowHeight * (isSmallScreen ? 0.4 : 0.9);
-            
+
             // 计算16:9比例的播放框宽度
             const playerAspectRatio = 16/9;
             playerWidth = playerHeight * (9/16);
-            
+
             // 如果播放框宽度超过窗口宽度的限制，则缩小高度
             if (playerWidth > windowWidth * (isSmallScreen ? 0.9 : 0.8)) {
                 playerWidth = windowWidth * (isSmallScreen ? 0.9 : 0.8);
                 playerHeight = playerWidth * (16/9);
             }
-            
+
             console.log(`竖版媒体：使用16:9播放框 ${playerWidth}x${playerHeight}`);
         }
-        
+
         // 设置播放框尺寸
         playerInner.style.width = `${playerWidth}px`;
         playerInner.style.height = `${playerHeight}px`;
-        
+
         // 设置媒体元素在播放框中居中并保持原始比例
         if (aspectRatio < 1) {
             // 计算图片实际显示尺寸，在播放框内保持原始比例
@@ -3035,26 +3039,26 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 imgWidth = mediaWidth;
                 imgHeight = mediaHeight;
             }
-            
+
             // 设置图片样式以在播放框中居中
             mediaElement.style.display = 'block';
             mediaElement.style.margin = '0 auto';
             mediaElement.style.height = `${imgHeight}px`;
             mediaElement.style.width = `${imgWidth}px`;
-            
+
             console.log(`竖版图片实际显示尺寸: ${imgWidth}x${imgHeight}`);
         }
-        
+
         // 设置播放框位置
         playerInner.style.position = 'absolute';
-        
+
         // 默认将数字人位置设为null
         let digitalHumanPosition = null;
-        
+
         if (isSmallScreen) {
             // 小屏幕设备
             let leftPosition;
-            
+
             // 对于竖图或竖视频(短视频)使用特殊的居中逻辑
             if (aspectRatio < 1) {
                 // 特殊计算方式
@@ -3065,17 +3069,17 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 leftPosition = (windowWidth - playerWidth) / 2;
                 console.log('小屏幕横版媒体：普通居中逻辑，左边距:', leftPosition);
             }
-            
+
             playerInner.style.left = `${leftPosition}px`;
             playerInner.style.right = 'auto'; // 确保right属性不会影响居中
             playerInner.style.top = '35px';
-            
+
             // 小屏幕下数字人居中放置
             digitalHumanPosition = null;
         } else {
             // 大屏幕下，始终使用左/右下角放置数字人
             let digitalHumanOnLeft = false;
-            
+
             // 根据位置模式设置数字人位置
             switch(window.digitalHumanPositionMode) {
                 case 1: // 始终左下角
@@ -3099,10 +3103,10 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                     console.log(`随机决定数字人放在${digitalHumanOnLeft ? '左' : '右'}下角`);
                     break;
             }
-            
+
             // 保存数字人位置，大屏幕下总是使用左/右
             digitalHumanPosition = digitalHumanOnLeft;
-            
+
             // 对于竖版图片(高>宽)，始终让播放框水平居中显示
             if (aspectRatio < 1) {
                 // 竖版图片，播放框居中显示
@@ -3135,18 +3139,18 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
                 }
             }
         }
-        
+
         // 添加active类以显示播放框
         player.classList.add('active');
-        
+
         // 使用moveDigitalHumanForMedia移动数字人到对应位置
         moveDigitalHumanForMedia(canvas, digitalHumanPosition);
     };
-    
+
     // 图片加载失败处理
     mediaElement.onerror = function() {
         console.error('媒体加载失败:', url);
-        
+
         // 如果是队列处理模式，继续处理下一个媒体
         if (isProcessingMediaQueue) {
             console.log('媒体加载失败，继续处理队列中的下一个媒体');
@@ -3155,7 +3159,7 @@ function showMediaInTechPlayer(url, type, displayTime = 5, alignLeft, isLoop = f
             closeTechMediaPlayer();
         }
     };
-    
+
     // 如果是图片且不在队列处理模式，设置自动关闭定时器
     if (type === 'image' && displayTime > 0 && !isProcessingMediaQueue) {
         techPlayerAutoCloseTimer = setTimeout(function() {
@@ -3174,12 +3178,12 @@ function closeTechMediaPlayer() {
         clearTimeout(techPlayerAutoCloseTimer);
         techPlayerAutoCloseTimer = null;
     }
-    
+
     // 停止音频静音检测
     if (typeof stopAudioSilenceDetection === 'function') {
         stopAudioSilenceDetection();
     }
-    
+
     // 重置视频播放状态
     if (typeof videoPlayedAtLeastOnce !== 'undefined') {
         videoPlayedAtLeastOnce = false;
@@ -3187,12 +3191,12 @@ function closeTechMediaPlayer() {
     if (typeof isMediaVideoType !== 'undefined') {
         isMediaVideoType = false;
     }
-    
+
     // 如果当前是在处理队列，检查是否有下一个媒体需要处理
     if (isProcessingMediaQueue) {
         console.log('从队列中关闭媒体');
         currentlyPlayingMedia = null;
-        
+
         // 检查队列中是否还有媒体
         if (imageMediaQueue.length > 0 || videoMediaQueue.length > 0) {
             // 立即处理下一个，不需要真正关闭播放器
@@ -3205,32 +3209,32 @@ function closeTechMediaPlayer() {
             console.log('队列已清空，关闭播放器');
         }
     }
-    
+
     const player = document.getElementById('tech-media-player');
     const canvas = document.getElementById('canvas');
-    
+
     if (!player || !canvas) return;
-    
+
     // 移除active类，触发淡出动画
     player.classList.remove('active');
-    
+
     // 恢复数字人原始样式
     if (canvas.originalStyle) {
         // 添加过渡动画
         canvas.style.transition = 'all 0.5s ease-in-out';
-        
+
         // 恢复原始样式
         Object.keys(canvas.originalStyle).forEach(key => {
             canvas.style[key] = canvas.originalStyle[key];
         });
-        
+
         // 动画结束后清除transition
         setTimeout(() => {
             canvas.style.transition = '';
             delete canvas.originalStyle;
         }, 500);
     }
-    
+
     // 清空媒体内容
     setTimeout(() => {
         const content = player.querySelector('.tech-media-content');
@@ -3250,36 +3254,36 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         console.error('URL不能为空');
         return;
     }
-    
+
     // 确保displayTime为有效数字
     displayTime = typeof displayTime === 'number' && displayTime > 0 ? displayTime : 5;
-    
+
     // 检查媒体类型有效性
     if (type !== 'image' && type !== 'video') {
         console.warn(`不支持的媒体类型: ${type}，默认使用image`);
         type = 'image';
     }
-    
+
     // 检查当前是否没有媒体在展示和排队
-    const noActiveMedia = !isProcessingMediaQueue && 
-                        imageMediaQueue.length === 0 && 
-                        videoMediaQueue.length === 0 && 
-                        !document.querySelector('#tech-media-player.active');
-    
+    const noActiveMedia = !isProcessingMediaQueue &&
+        imageMediaQueue.length === 0 &&
+        videoMediaQueue.length === 0 &&
+        !document.querySelector('#tech-media-player.active');
+
     // 判断是单个URL、数组还是对象
     if (Array.isArray(url)) {
         console.log('接收到媒体数组，添加到队列');
-        
+
         // 如果数组为空，直接返回
         if (url.length === 0) {
             console.warn('传入的媒体数组为空');
             return;
         }
-        
+
         // 清空现有队列
         imageMediaQueue = [];
         videoMediaQueue = [];
-        
+
         // 检查数组中的内容类型
         url.forEach(item => {
             if (typeof item === 'string') {
@@ -3290,7 +3294,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
                 const itemType = item.type || type;
                 const itemUrl = item.url || item.src || '';
                 const itemDisplayTime = item.displayTime || displayTime;
-                
+
                 if (itemUrl) {
                     addMediaToQueue(itemUrl, itemType, itemDisplayTime);
                 } else {
@@ -3300,7 +3304,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
                 console.warn('忽略无效的媒体项:', item);
             }
         });
-        
+
         // 立即开始处理，不等待
         if (queueProcessingTimer) {
             clearTimeout(queueProcessingTimer);
@@ -3311,7 +3315,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         const mediaUrl = url.url || url.src;
         const mediaType = url.type || type;
         const mediaDisplayTime = url.displayTime || displayTime;
-        
+
         // 如果当前没有媒体在展示和排队，直接显示而不使用队列
         if (noActiveMedia) {
             console.log(`当前无媒体展示，单个${mediaType}配置对象直接播放: ${mediaUrl}`);
@@ -3330,7 +3334,7 @@ window.showMediaContentInPlayer = function(url, type = 'image', displayTime = 5,
         }
     } else {
         // 单个URL字符串
-        
+
         // 如果当前没有媒体在展示和排队，直接显示而不使用队列
         if (noActiveMedia) {
             console.log(`当前无媒体展示，单个${type}直接播放: ${url}`);
@@ -3360,17 +3364,17 @@ function handleMediaWebSocketMessage(data) {
         console.error('无效的媒体消息数据');
         return;
     }
-    
+
     const type = data.type || 'image';
     const displayTime = data.displayTime || (type === 'image' ? 5 : 0);
     const isArray = Array.isArray(data.url);
-    
+
     console.log(`收到WebSocket媒体消息: ${type}, ${isArray ? '媒体数组' : data.url}`);
-    
+
     // 如果正在处理队列，直接添加到现有队列
     if (isProcessingMediaQueue) {
         console.log("正在处理队列，将新媒体添加到现有队列");
-        
+
         if (isArray) {
             // 处理媒体URL数组
             data.url.forEach(url => {
@@ -3380,26 +3384,26 @@ function handleMediaWebSocketMessage(data) {
             // 处理单个URL
             addMediaToQueue(data.url, type, displayTime);
         }
-        
+
         // 重置队列处理计时器，确保在3秒内没有新媒体加入时才开始处理
         resetQueueProcessingTimer();
         return;
     }
-    
+
     // 不在处理队列，根据媒体类型和数量决定处理方式
     if (isArray) {
         // 数组，使用队列处理
         console.log("收到媒体数组，使用队列处理");
-        
+
         // 清空现有队列
         imageMediaQueue = [];
         videoMediaQueue = [];
-        
+
         // 添加所有媒体项
         data.url.forEach(url => {
             addMediaToQueue(url, type, displayTime);
         });
-        
+
         // 立即开始处理
         setTimeout(processMediaQueues, 100);
     } else {
@@ -3418,4 +3422,34 @@ function handleMediaWebSocketMessage(data) {
         }
     }
 }
-// 
+//
+
+function showMediaInTechPlayerHandler(data) {
+    if (!data || !data.url) {
+        console.error('无效的媒体消息数据');
+        return;
+    }
+
+    if (data.type === 'image') {
+        window.showMediaInTechPlayer(data.url || data.message, 'image', 5);
+    } else if (data.type === 'video') {
+        window.showMediaInTechPlayer(data.url || data.message, 'video');
+    } else if (data.type === 'audio') {
+        window.showMediaInTechPlayer(data.url || data.message, 'audio');
+    }
+}
+
+function showMediaInTechPlayerOCHandler(data) {
+    if (!data || !data.message) {
+        console.error('无效的媒体消息数据');
+        return;
+    }
+
+    if (data.new_type === 'image') {
+        window.showMediaInTechPlayer(data.message, 'image', 5);
+    } else if (data.new_type === 'video') {
+        window.showMediaInTechPlayer(data.message, 'video');
+    } else if (data.new_type === 'audio') {
+        window.showMediaInTechPlayer(data.message, 'audio');
+    }
+}

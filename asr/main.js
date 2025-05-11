@@ -1470,6 +1470,13 @@ function onASRResult(result) {
             // addChatMessage(result, 'right', false, 'audio');
         } else {
             info_div.innerHTML = "<span style='color:#ff9f1c'>人脸检测功能已停用，直接发送消息</span>";
+            
+            const stopMusicResult = window.parent.checkAndStopMusic(result, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+            const playMusicResult = window.parent.checkAndPlayMusic(result, ['播放音乐', '音乐继续', '继续播放']);
+            if (stopMusicResult || playMusicResult) {
+                console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+                return;
+            }
             // 回退到原来的直接发送方式
             // window.parent.stopAudioSilenceDetection();
             fetch(`http://${window.parent.host}/human`, {

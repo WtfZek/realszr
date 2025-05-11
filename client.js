@@ -92,10 +92,14 @@ function connectWebSocket(sessionid) {
                 console.log("event.data", data);
 
                 // 处理媒体类型消息
-                if (data.type === 'video' || data.type === 'image' || data.type === 'audio') {
+                if (data.type === 'video' || data.type === 'image') {
                     // 使用handleMediaWebSocketMessage处理媒体消息，支持队列
                     // handleMediaWebSocketMessage(data);
                     showMediaInTechPlayerHandler(data);
+                } else if (data.type === 'music') {
+                    // 使用handleMediaWebSocketMessage处理媒体消息，支持队列
+                    // handleMediaWebSocketMessage(data);
+                    addBackgroundMusic(data);
                 } else if (data.type === 'text') {
                     try {
                         // 尝试解析JSON，看是否是特殊控制消息
@@ -1222,6 +1226,15 @@ echoForm.addEventListener('submit', function(e) {
     console.log('发送消息:', message);
     console.log('sessionid:', document.getElementById('sessionid').value);
 
+    // 添加音乐控制检查
+    const stopMusicResult = window.checkAndStopMusic(message, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+    const playMusicResult = window.checkAndPlayMusic(message, ['播放音乐', '音乐继续', '继续播放']);
+
+    if (stopMusicResult || playMusicResult) {
+        console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+        return;
+    }
+
     // 使用全局变量控制请求参数
     const messageType = window.messageType || 'chat';
     const interrupt = window.messageInterrupt !== undefined ? window.messageInterrupt : true;
@@ -1921,42 +1934,52 @@ window.onload = function() {
  * 处理语音识别结果
  * @param {string} result - 语音识别得到的文本结果
  */
-// function onASRResult(result) {
-//     if (!result || typeof result !== 'string' || !result.trim()) {
-//         console.log('收到空的ASR结果，跳过处理');
-//         return;
-//     }
+function onASRResult(result) {
+    if (!result || typeof result !== 'string' || !result.trim()) {
+        console.log('收到空的ASR结果，跳过处理');
+        return;
+    }
 
-//     // 将识别结果作为右侧消息显示（用户说的话）
-//     // currentSystemMessageId = null;
-//     addChatMessage(result, 'right', false);
+    // 添加音乐控制检查
+    const stopMusicResult = window.checkAndStopMusic(result, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+    const playMusicResult = window.checkAndPlayMusic(result, ['播放音乐', '音乐继续', '继续播放']);
+    
+    // 如果只是音乐控制命令，可以选择不发送到对话系统
+    // if (stopMusicResult || playMusicResult) {
+    //     console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+    //     // 注意：如果想要音乐命令同时也发送到对话系统，可以移除以下return语句
+    //     // return;
+    // }
 
-//     // 更新最后一次用户消息的时间戳
-//     window.lastUserMessageTimestamp = Date.now();
+    // 将识别结果作为右侧消息显示（用户说的话）
+    addChatMessage(result, 'right', false);
 
-//     // 用户发送新消息后，强制重置当前流ID
-//     window.currentStreamingId = null;
+    // 更新最后一次用户消息的时间戳
+    window.lastUserMessageTimestamp = Date.now();
 
-//     console.log('发送ASR识别结果:', result);
+    // 用户发送新消息后，强制重置当前流ID
+    window.currentStreamingId = null;
 
-//     // 语音识别结果也发送到服务器
-//     const sessionId = parseInt(document.getElementById('sessionid').value);
-//     fetch('http://192.168.3.100:8018/human', {
-//         body: JSON.stringify({
-//             text: result,
-//             type: 'chat',
-//             interrupt: true,
-//             sessionid: sessionId,
-//         }),
-//         headers: {
-//             'Content-Type': 'application/json'
-//         },
-//         method: 'POST'
-//     })
-//     .catch(error => {
-//         console.error('发送ASR结果失败:', error);
-//     });
-// }
+    console.log('发送ASR识别结果:', result);
+
+    // 语音识别结果也发送到服务器
+    const sessionId = parseInt(document.getElementById('sessionid').value);
+    fetch(`${window.protocol}://${window.host}/human`, {
+        body: JSON.stringify({
+            text: result,
+            type: 'chat',
+            interrupt: true,
+            sessionid: sessionId,
+        }),
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        method: 'POST'
+    })
+    .catch(error => {
+        console.error('发送ASR结果失败:', error);
+    });
+}
 
 // 新增：处理数字人音频数据并传递给ASR识别的函数
 function setupAudioRecognition(audioStream) {
@@ -2354,6 +2377,12 @@ function connectToOCServer() {
                 console.log('发送消息:', message);
                 console.log('sessionid:', document.getElementById('sessionid').value);
 
+                const stopMusicResult = window.checkAndStopMusic(data.message, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+                const playMusicResult = window.checkAndPlayMusic(data.message, ['播放音乐', '音乐继续', '继续播放']);
+                if (stopMusicResult || playMusicResult) {
+                    console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+                    return;
+                }
                 // 发送消息到服务器
                 fetch(`${window.protocol}://${window.host}/human`, {
                     body: JSON.stringify({
@@ -2383,6 +2412,9 @@ function connectToOCServer() {
             } else if (data.new_type === 'video' || data.new_type === 'image' || data.new_type === 'audio') {
                 console.log("传来媒体数据")
                 showMediaInTechPlayerOCHandler(data);
+            } else if (data.new_type === 'music') {
+                console.log("传来音乐数据")
+                addBackgroundMusic(data);
             }
         }
     };
@@ -2633,6 +2665,10 @@ function testMediaPlayer() {
 
     // 随机决定测试单个媒体还是队列
     const isQueue = Math.random() > 0.5;
+
+    addBackgroundMusic({
+        url: 'http://110.42.226.136:8000/media/audio/a7997424_bgm1.mp3'
+    });
 
     if (isQueue) {
         // 测试媒体队列
@@ -3451,5 +3487,235 @@ function showMediaInTechPlayerOCHandler(data) {
         window.showMediaInTechPlayer(data.message, 'video');
     } else if (data.new_type === 'audio') {
         window.showMediaInTechPlayer(data.message, 'audio');
+    } else if (data.new_type === 'echo' || data.new_type === 'chat') {
+        // 添加音乐控制检查
+        console.log('检测到音乐控制命令，处理音乐控制');
+        const stopMusicResult = window.checkAndStopMusic(data.message, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+        const playMusicResult = window.checkAndPlayMusic(data.message, ['播放音乐', '音乐继续', '继续播放']);
+        
+        if (stopMusicResult || playMusicResult) {
+            console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+            return;
+        }
+
+        // 更新最后一次用户消息的时间戳
+        window.lastUserMessageTimestamp = Date.now();
+
+        // 用户发送新消息后，强制重置当前流ID
+        window.currentStreamingId = null;
+
+        console.log('发送消息:', data.message);
+        console.log('sessionid:', document.getElementById('sessionid').value);
+
+        // 发送消息到服务器
+        fetch(`${window.protocol}://${window.host}/human`, {
+            body: JSON.stringify({
+                text: data.message,
+                type: data.new_type,
+                interrupt: window.messageInterrupt,
+                sessionid: parseInt(document.getElementById('sessionid').value),
+            }),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST'
+        })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('发送消息失败:', response.status);
+                    // 可以在聊天窗口中添加错误提示
+                    addChatMessage('消息发送失败，请重试', 'left', false, 'szr');
+                }
+                return response.text().catch(() => null);
+            })
+            .catch(error => {
+                console.error('请求发生错误:', error);
+                // 可以在聊天窗口中添加错误提示
+                addChatMessage('网络错误，或数字人未开启，请检查连接', 'left', false, 'szr');
+            });
     }
 }
+
+function addBackgroundMusic(data) {
+    if (!data || !data.url) {
+        console.error('无效的背景音乐消息数据');
+        return;
+    }
+
+    console.log('收到背景音乐消息:', data);
+    
+    // 从URL中提取文件名作为音乐名称
+    const url = data.url || data.message;
+    let musicName = url.split('/').pop(); // 获取URL最后部分作为文件名
+    
+    // 如果文件名中包含查询参数，去除查询参数
+    musicName = "生成/检索的音乐："+musicName.split('?')[0];
+    
+    // 如果传入了显示名称则优先使用
+    if (data.name) {
+        musicName = data.name;
+    }
+    
+    // 构建音乐项对象
+    const musicItem = {
+        name: musicName,
+        url: url,
+        // 如果传入了其他属性，可以在这里添加
+        displayTime: data.displayTime || 0
+    };
+    
+    // 检查是否有全局添加音乐的方法
+    if (typeof window.addMusicItem === 'function') {
+        // 添加到播放列表
+        const added = window.addMusicItem(musicItem);
+        
+        // 如果添加成功，查找该音乐在播放列表中的位置并播放
+            // console.log(`成功添加音乐 ${musicName} 到播放列表`);
+            
+            // 查找播放列表DOM元素
+            const musicPlaylist = document.getElementById('music-playlist');
+            if (musicPlaylist) {
+                // 查找选项数量，新添加的项目应该是最后一个
+                const index = musicPlaylist.options.length - 1;
+                
+                // 直接点击播放按钮（模拟用户操作）
+                try {
+                    // 选中新添加的音乐
+                    musicPlaylist.selectedIndex = index;
+                    
+                    // 查找并点击播放按钮
+                    const playBtn = document.getElementById('play-selected');
+                    if (playBtn) {
+                        console.log('触发播放选中的音乐');
+                        playBtn.click();
+                    } else {
+                        // 尝试找到播放/暂停按钮
+                        const playPauseBtn = document.getElementById('play-pause');
+                        if (playPauseBtn) {
+                            console.log('触发播放/暂停按钮');
+                            playPauseBtn.click();
+                        }
+                    }
+                } catch (e) {
+                    console.error('自动播放音乐失败:', e);
+                }
+            }
+
+    } else {
+        console.error('无法找到全局的addMusicItem方法，请确保music-player.js已加载');
+    }
+}
+
+/**
+ * 检查文本是否包含指定关键词，如果包含则暂停音乐
+ * @param {string} text - 要检查的文本
+ * @param {string|string[]} keywords - 单个关键词或关键词数组
+ * @returns {boolean} - 是否执行了暂停操作
+ */
+window.checkAndStopMusic = function(text, keywords) {
+    if (!text || typeof text !== 'string') return false;
+    
+    // 统一转换为小写进行比较
+    const lowerText = text.toLowerCase();
+    
+    // 处理关键词为数组或单个字符串的情况
+    const keywordArray = Array.isArray(keywords) ? keywords : [keywords];
+    
+    // 检查是否包含任一关键词
+    const containsKeyword = keywordArray.some(keyword => 
+        lowerText.includes(keyword.toLowerCase())
+    );
+    
+    if (containsKeyword) {
+        console.log('检测到暂停音乐的指令:', text);
+        
+        // 查找播放/暂停按钮
+        const playPauseBtn = document.getElementById('play-pause');
+        if (!playPauseBtn) {
+            console.log('未找到音乐播放控件');
+            return false;
+        }
+        
+        // 直接检查音乐播放器元素
+        const musicPlayer = document.getElementById('music-player');
+        
+        // 通过检查播放/暂停按钮内部的SVG图标判断状态
+        // 暂停图标表示当前正在播放
+        const hasPauseIcon = playPauseBtn.querySelector('svg polygon') === null;
+        
+        // 检查音频元素是否存在且正在播放
+        const isAudioPlaying = musicPlayer && !musicPlayer.paused && musicPlayer.currentTime > 0;
+        
+        // 综合判断播放状态
+        const isPlaying = hasPauseIcon || isAudioPlaying || 
+                          (typeof window.isPlaying === 'boolean' && window.isPlaying);
+        
+        if (isPlaying) {
+            console.log('正在播放音乐，执行暂停操作');
+            playPauseBtn.click();
+            return true;
+        } else {
+            console.log('音乐已经是暂停状态');
+            return false;
+        }
+    }
+    
+    return false;
+};
+
+/**
+ * 检查文本是否包含指定关键词，如果包含则继续播放音乐
+ * @param {string} text - 要检查的文本
+ * @param {string|string[]} keywords - 单个关键词或关键词数组
+ * @returns {boolean} - 是否执行了继续播放操作
+ */
+window.checkAndPlayMusic = function(text, keywords) {
+    if (!text || typeof text !== 'string') return false;
+    
+    // 统一转换为小写进行比较
+    const lowerText = text.toLowerCase();
+    
+    // 处理关键词为数组或单个字符串的情况
+    const keywordArray = Array.isArray(keywords) ? keywords : [keywords];
+    
+    // 检查是否包含任一关键词
+    const containsKeyword = keywordArray.some(keyword => 
+        lowerText.includes(keyword.toLowerCase())
+    );
+    
+    if (containsKeyword) {
+        console.log('检测到继续播放音乐的指令:', text);
+        
+        // 查找播放/暂停按钮
+        const playPauseBtn = document.getElementById('play-pause');
+        if (!playPauseBtn) {
+            console.log('未找到音乐播放控件');
+            return false;
+        }
+        
+        // 直接检查音乐播放器元素
+        const musicPlayer = document.getElementById('music-player');
+        
+        // 通过检查播放/暂停按钮内部的SVG图标判断状态
+        // 播放图标(polygon)表示当前暂停中
+        const hasPlayIcon = playPauseBtn.querySelector('svg polygon') !== null;
+        
+        // 检查音频元素是否存在且已暂停
+        const isAudioPaused = musicPlayer && (musicPlayer.paused || musicPlayer.currentTime === 0);
+        
+        // 综合判断暂停状态
+        const isPaused = hasPlayIcon || isAudioPaused || 
+                         (typeof window.isPlaying === 'boolean' && !window.isPlaying);
+        
+        if (isPaused) {
+            console.log('音乐已暂停，执行继续播放操作');
+            playPauseBtn.click();
+            return true;
+        } else {
+            console.log('音乐已经在播放中');
+            return false;
+        }
+    }
+    
+    return false;
+};

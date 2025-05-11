@@ -34,8 +34,11 @@ function initLoginPage() {
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     
-    // 初始化默认用户
-    initDefaultUser();
+    // 尝试从localStorage获取上次登录的用户名
+    const lastLoginUser = localStorage.getItem('lastLoginUser');
+    if (lastLoginUser) {
+        usernameInput.value = lastLoginUser;
+    }
     
     // 登录按钮点击事件
     loginButton.addEventListener('click', function() {
@@ -59,9 +62,6 @@ function initRegisterPage() {
     const emailInput = document.getElementById('reg-email');
     const passwordInput = document.getElementById('reg-password');
     const confirmPasswordInput = document.getElementById('reg-confirm-password');
-    
-    // 初始化默认用户
-    initDefaultUser();
     
     // 注册按钮点击事件
     registerButton.addEventListener('click', function() {
@@ -218,24 +218,6 @@ function initInputFocusEffects() {
     });
 }
 
-// 初始化默认用户
-function initDefaultUser() {
-    // 检查是否已有用户数据
-    let users = localStorage.getItem('users');
-    
-    // 如果没有用户数据，添加默认用户
-    if (!users) {
-        const defaultUsers = [
-            {
-                username: 'suan',
-                password: 'suansuan',
-                email: 'suan@example.com'
-            }
-        ];
-        localStorage.setItem('users', JSON.stringify(defaultUsers));
-    }
-}
-
 // 处理登录逻辑
 function handleLogin() {
     const username = document.getElementById('username').value.trim();
@@ -258,34 +240,73 @@ function handleLogin() {
         return;
     }
     
-    // 获取用户数据
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-    const user = users.find(u => u.username === username);
+    // 显示加载状态
+    const loginButton = document.getElementById('login-button');
+    const originalText = loginButton.innerHTML;
+    loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登录中...';
+    loginButton.disabled = true;
     
-    if (!user) {
-        showError('username-error', '用户名不存在');
-        shakeInput('username');
-        return;
-    }
+    console.log('发送登录请求...');
     
-    if (user.password !== password) {
-        showError('password-error', '密码不正确');
-        shakeInput('password');
-        return;
-    }
-    
-    // 登录成功
-    if (rememberMe) {
-        localStorage.setItem('lastLoginUser', username);
-    }
-    
-    // 显示成功通知
-    showNotification('登录成功，跳转中...', 'success');
-    
-    // 登录成功后跳转到主页
-    setTimeout(() => {
-        window.location.href = 'webrtcapi-asr.html';
-    }, 1500);
+    // CORS问题临时解决方案 - 使用本地存储模拟登录过程
+    // 在生产环境中，这里应该使用正确配置了CORS的API或后端代理
+    simulateLogin(username, password)
+        .then(data => {
+            console.log('登录成功，响应数据:', data);
+            
+            if (rememberMe) {
+                localStorage.setItem('lastLoginUser', username);
+            }
+            
+            // 显示成功通知
+            showNotification(`登录成功，欢迎 ${data.username}`, 'success');
+            
+            // 登录成功后跳转到主页
+            setTimeout(() => {
+                console.log('准备跳转到主页...');
+                window.location.href = 'webrtcapi-asr.html';
+            }, 1500);
+        })
+        .catch(error => {
+            console.error('登录过程出错:', error);
+            showError('username-error', '用户名或密码错误');
+            shakeInput('username');
+            shakeInput('password');
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            loginButton.innerHTML = originalText;
+            loginButton.disabled = false;
+            console.log('登录请求处理完成');
+        });
+}
+
+// 模拟登录API请求 - 临时解决方案，避免CORS问题
+function simulateLogin(username, password) {
+    return new Promise((resolve, reject) => {
+        // 实际的登录逻辑应该与后端API一致
+        // 这里仅作为前端开发阶段的临时解决方案
+        
+        console.log(`模拟登录请求 - 用户名: ${username}, 密码: ${password}`);
+        
+        // 模拟网络延迟
+        setTimeout(() => {
+            // 硬编码的测试用户，实际应用应改为API调用
+            if (username === "yjh" && password === "yjh542") {
+                resolve({
+                    message: "登录成功",
+                    username: username
+                });
+            } else if (username === "suan" && password === "suansuan") {
+                resolve({
+                    message: "登录成功",
+                    username: username
+                });
+            } else {
+                reject(new Error("用户名或密码错误"));
+            }
+        }, 800); // 模拟网络延迟
+    });
 }
 
 // 处理注册逻辑
@@ -353,40 +374,54 @@ function handleRegister() {
         return;
     }
     
-    // 从本地存储获取现有用户
-    const users = JSON.parse(localStorage.getItem('users')) || [];
+    // 显示加载状态
+    const registerButton = document.getElementById('register-button');
+    const originalText = registerButton.innerHTML;
+    registerButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 注册中...';
+    registerButton.disabled = true;
     
-    // 检查用户名是否已存在
-    if (users.some(user => user.username === username)) {
-        showError('reg-username-error', '用户名已被注册');
-        shakeInput('reg-username');
-        return;
-    }
+    // 准备请求数据
+    const userData = {
+        username: username,
+        password: password,
+        email: email
+    };
     
-    // 检查邮箱是否已存在
-    if (users.some(user => user.email === email)) {
-        showError('reg-email-error', '此邮箱已被注册');
-        shakeInput('reg-email');
-        return;
-    }
-    
-    // 添加新用户
-    users.push({
-        username,
-        email,
-        password
-    });
-    
-    // 保存到本地存储
-    localStorage.setItem('users', JSON.stringify(users));
-    
-    // 显示成功通知
-    showNotification('注册成功！正在跳转到登录页面...', 'success');
-    
-    // 注册成功后跳转到登录页面
-    setTimeout(() => {
-        window.location.href = 'login.html';
-    }, 1500);
+    // 调用注册API
+    fetch('http://192.168.3.15:9223/register', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('注册失败');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // 注册成功
+            console.log('注册成功:', data);
+            
+            // 显示成功通知
+            showNotification(`注册成功！用户名 ${data.username} 已创建`, 'success');
+            
+            // 注册成功后跳转到登录页面
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 1500);
+        })
+        .catch(error => {
+            console.error('注册错误:', error);
+            showError('reg-username-error', '用户名已被注册或注册失败');
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            registerButton.innerHTML = originalText;
+            registerButton.disabled = false;
+        });
 }
 
 // 错误时输入框抖动效果

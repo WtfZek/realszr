@@ -1564,6 +1564,13 @@
             // 处理队列中的所有消息
             for (const message of faceDetectionQueue) {
                 try {
+                    
+                    const stopMusicResult = window.parent.checkAndStopMusic(message, ['暂停音乐', '音乐暂停', '关闭音乐', '音乐关闭']);
+                    const playMusicResult = window.parent.checkAndPlayMusic(message, ['播放音乐', '音乐继续', '继续播放']);
+                    if (stopMusicResult || playMusicResult) {
+                        console.log('检测到音乐控制命令，仅处理音乐控制，不发送到对话系统');
+                        return;
+                    }
                     // 发送消息到后端
                     const response = await fetch(`http://${window.parent.host}/human`, {
                         body: JSON.stringify({
